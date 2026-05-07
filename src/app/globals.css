@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { font-family: theme(fontFamily.sans); color: theme(colors.ink); background: theme(colors.cream); }
+  h1, h2, h3 { font-family: theme(fontFamily.serif); font-weight: 500; letter-spacing: -0.01em; }
+  a { transition: color 120ms ease; }
+}
+
+@layer components {
+  .container-x { @apply mx-auto px-6 md:px-10 max-w-7xl; }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-ink text-cream px-6 py-3
+           text-sm font-medium tracking-wide hover:bg-goldDeep transition-colors
+           border border-ink hover:border-goldDeep;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 text-sm
+           font-medium tracking-wide border border-ink/30 text-ink
+           hover:border-ink hover:bg-ink hover:text-cream transition-colors;
+  }
+  .eyebrow {
+    @apply text-[11px] uppercase tracking-[0.18em] text-goldDeep font-medium;
+  }
+}
+
+/* Subtle fade-in for hero on first paint */
+@keyframes fadeRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-rise { animation: fadeRise 600ms ease-out both; }

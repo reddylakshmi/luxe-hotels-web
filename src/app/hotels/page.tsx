@@ -6,34 +6,124 @@ import { HOTELS_LIST_QUERY } from "@/lib/queries";
 import type { Connection, HotelCard as HotelCardType } from "@/types/graphql";
 import { HotelCard } from "@/components/HotelCard";
 
-const CITY_FILTERS = [
-  { label: "All hotels", value: "" },
-  { label: "Paris", value: "Paris" },
-  { label: "London", value: "London" },
-  { label: "New York", value: "New York" },
-  { label: "Tokyo", value: "Tokyo" },
-  { label: "Dubai", value: "Dubai" },
-];
-
 type Resp = { hotels: Connection<HotelCardType> };
+
+// Two-letter country code → display name + region.
+const COUNTRY_NAMES: Record<string, { name: string; region: string }> = {
+  US: { name: "United States", region: "Americas" },
+  CA: { name: "Canada", region: "Americas" },
+  MX: { name: "Mexico", region: "Americas" },
+  BR: { name: "Brazil", region: "Americas" },
+  AR: { name: "Argentina", region: "Americas" },
+  CL: { name: "Chile", region: "Americas" },
+  PE: { name: "Peru", region: "Americas" },
+  GB: { name: "United Kingdom", region: "Europe" },
+  FR: { name: "France", region: "Europe" },
+  DE: { name: "Germany", region: "Europe" },
+  IT: { name: "Italy", region: "Europe" },
+  ES: { name: "Spain", region: "Europe" },
+  PT: { name: "Portugal", region: "Europe" },
+  NL: { name: "Netherlands", region: "Europe" },
+  BE: { name: "Belgium", region: "Europe" },
+  CH: { name: "Switzerland", region: "Europe" },
+  AT: { name: "Austria", region: "Europe" },
+  IE: { name: "Ireland", region: "Europe" },
+  SE: { name: "Sweden", region: "Europe" },
+  NO: { name: "Norway", region: "Europe" },
+  DK: { name: "Denmark", region: "Europe" },
+  FI: { name: "Finland", region: "Europe" },
+  IS: { name: "Iceland", region: "Europe" },
+  GR: { name: "Greece", region: "Europe" },
+  HR: { name: "Croatia", region: "Europe" },
+  PL: { name: "Poland", region: "Europe" },
+  CZ: { name: "Czechia", region: "Europe" },
+  HU: { name: "Hungary", region: "Europe" },
+  JP: { name: "Japan", region: "Asia Pacific" },
+  KR: { name: "South Korea", region: "Asia Pacific" },
+  CN: { name: "China", region: "Asia Pacific" },
+  HK: { name: "Hong Kong", region: "Asia Pacific" },
+  TW: { name: "Taiwan", region: "Asia Pacific" },
+  SG: { name: "Singapore", region: "Asia Pacific" },
+  TH: { name: "Thailand", region: "Asia Pacific" },
+  MY: { name: "Malaysia", region: "Asia Pacific" },
+  ID: { name: "Indonesia", region: "Asia Pacific" },
+  VN: { name: "Vietnam", region: "Asia Pacific" },
+  PH: { name: "Philippines", region: "Asia Pacific" },
+  IN: { name: "India", region: "Asia Pacific" },
+  LK: { name: "Sri Lanka", region: "Asia Pacific" },
+  AU: { name: "Australia", region: "Asia Pacific" },
+  NZ: { name: "New Zealand", region: "Asia Pacific" },
+  AE: { name: "United Arab Emirates", region: "Middle East & Africa" },
+  SA: { name: "Saudi Arabia", region: "Middle East & Africa" },
+  QA: { name: "Qatar", region: "Middle East & Africa" },
+  OM: { name: "Oman", region: "Middle East & Africa" },
+  IL: { name: "Israel", region: "Middle East & Africa" },
+  JO: { name: "Jordan", region: "Middle East & Africa" },
+  EG: { name: "Egypt", region: "Middle East & Africa" },
+  MA: { name: "Morocco", region: "Middle East & Africa" },
+  ZA: { name: "South Africa", region: "Middle East & Africa" },
+  KE: { name: "Kenya", region: "Middle East & Africa" },
+};
+
+const REGION_ORDER = ["Americas", "Europe", "Asia Pacific", "Middle East & Africa"];
+
+const HOTELS_PER_PAGE = 300;
 
 export default async function HotelsPage({
                                             searchParams,
                                           }: {
-  searchParams: { city?: string };
+  searchParams: { city?: string; country?: string };
 }) {
-  const city = searchParams.city ?? "";
+  const cityQuery = searchParams.city ?? "";
+  const countryCode = (searchParams.country ?? "").toUpperCase();
+
+  // Build the HotelFilter input. countryCodes is exact-match;
+  // city is a free-text query (matches name or city).
+  const filter: Record<string, unknown> = {};
+  if (cityQuery) filter.query = cityQuery;
+  if (countryCode) filter.countryCodes = [countryCode];
+
   const data = await gqlFetch<Resp>(HOTELS_LIST_QUERY, {
-    filter: city ? { query: city } : null,
+    filter: Object.keys(filter).length ? filter : null,
+    first: HOTELS_PER_PAGE,
   });
 
   const hotels = data.hotels.edges.map((e) => e.node);
-  // Group by region for an editorial feel
-  const groups = hotels.reduce<Record<string, HotelCardType[]>>((acc, h) => {
-    const region = h.location?.address?.countryCode ?? "Other";
-    (acc[region] ||= []).push(h);
-    return acc;
-  }, {});
+
+  // Group: country → city → hotels[]
+  type ByCity = Record<string, HotelCardType[]>;
+  type ByCountry = Record<string, ByCity>;
+
+  const byCountry: ByCountry = {};
+  const cityCounts: Record<string, number> = {}; // for header count
+  for (const h of hotels) {
+    const cc = h.location?.address?.countryCode ?? "—";
+    const city = h.location?.address?.city ?? "—";
+    (byCountry[cc] ??= {})[city] ??= [];
+    byCountry[cc][city].push(h);
+    cityCounts[`${cc}::${city}`] = (cityCounts[`${cc}::${city}`] ?? 0) + 1;
+  }
+
+  // Order countries: by region, then alphabetically by display name.
+  const orderedCountryCodes = Object.keys(byCountry).sort((a, b) => {
+    const ra = REGION_ORDER.indexOf(COUNTRY_NAMES[a]?.region ?? "");
+    const rb = REGION_ORDER.indexOf(COUNTRY_NAMES[b]?.region ?? "");
+    if (ra !== rb) return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+    const na = COUNTRY_NAMES[a]?.name ?? a;
+    const nb = COUNTRY_NAMES[b]?.name ?? b;
+    return na.localeCompare(nb);
+  });
+
+  // Group countries by region for the dropdown.
+  const allCountryCodes = Object.keys(COUNTRY_NAMES).sort((a, b) => {
+    const ra = REGION_ORDER.indexOf(COUNTRY_NAMES[a].region);
+    const rb = REGION_ORDER.indexOf(COUNTRY_NAMES[b].region);
+    if (ra !== rb) return ra - rb;
+    return COUNTRY_NAMES[a].name.localeCompare(COUNTRY_NAMES[b].name);
+  });
+
+  const renderedCount = hotels.length;
+  const totalCount = data.hotels.totalCount;
 
   return (
           <>
@@ -41,55 +131,114 @@ export default async function HotelsPage({
               <div className="container-x py-20 md:py-28">
                 <div className="eyebrow text-cream/70 mb-4">Hotels &amp; Destinations</div>
                 <h1 className="font-serif text-5xl md:text-6xl leading-tight max-w-3xl">
-                  Twelve hotels. One philosophy.
+                  {totalCount.toLocaleString()} hotels.{" "}
+                  {orderedCountryCodes.length} countries.
                 </h1>
                 <p className="mt-6 text-cream/80 max-w-2xl leading-relaxed">
-                  From a single Parisian address in 1957 to flagship hotels across four continents — each Luxe
-                  property speaks the language of its city.
+                  From a single Parisian address in 1957 to a portfolio across four continents — every Luxe property
+                  speaks the language of its city.
                 </p>
               </div>
             </section>
 
+            {/* Filter bar */}
             <div className="border-b border-ink/10 bg-cream sticky top-16 z-30">
-              <div className="container-x py-4 flex items-center gap-2 overflow-x-auto">
-                {CITY_FILTERS.map((f) => {
-                  const active = city === f.value;
-                  return (
-                          <Link
-                                  key={f.label}
-                                  href={f.value ? `/hotels?city=${encodeURIComponent(f.value)}` : "/hotels"}
-                                  className={`text-xs uppercase tracking-[0.18em] px-4 py-2 border whitespace-nowrap ${
-                                          active
-                                                  ? "bg-ink text-cream border-ink"
-                                                  : "border-ink/20 text-ink/70 hover:border-ink hover:text-ink"
-                                  }`}
-                          >
-                            {f.label}
+              <div className="container-x py-4 flex items-center gap-3 flex-wrap">
+                <form action="/hotels" className="flex items-center gap-3 flex-wrap">
+                  <label className="text-xs uppercase tracking-[0.18em] text-ink/70">Country</label>
+                  <select
+                          name="country"
+                          defaultValue={countryCode}
+                          className="bg-cream border border-ink/20 px-3 py-2 text-sm pr-8 cursor-pointer hover:border-ink"
+                  >
+                    <option value="">All countries</option>
+                    {REGION_ORDER.map((region) => (
+                            <optgroup key={region} label={region}>
+                              {allCountryCodes
+                                      .filter((cc) => COUNTRY_NAMES[cc].region === region)
+                                      .map((cc) => (
+                                              <option key={cc} value={cc}>
+                                                {COUNTRY_NAMES[cc].name}
+                                              </option>
+                                      ))}
+                            </optgroup>
+                    ))}
+                  </select>
+
+                  <label className="text-xs uppercase tracking-[0.18em] text-ink/70 ml-2">City / Hotel</label>
+                  <input
+                          type="text"
+                          name="city"
+                          defaultValue={cityQuery}
+                          placeholder="e.g. Paris, Maison Lumière…"
+                          className="bg-cream border border-ink/20 px-3 py-2 text-sm w-56 hover:border-ink focus:border-ink outline-none"
+                  />
+
+                  <button type="submit" className="btn-primary text-xs px-5 py-2">Apply</button>
+                  {(countryCode || cityQuery) && (
+                          <Link href="/hotels" className="text-xs text-ink/60 underline ml-2">
+                            Clear
                           </Link>
-                  );
-                })}
+                  )}
+                </form>
+
                 <span className="ml-auto text-xs text-ink/60">
-              {data.hotels.totalCount} hotel{data.hotels.totalCount === 1 ? "" : "s"}
+              Showing {renderedCount.toLocaleString()} of {totalCount.toLocaleString()} hotel
+                  {totalCount === 1 ? "" : "s"}
             </span>
               </div>
             </div>
 
             <div className="container-x py-16">
-              {Object.entries(groups).map(([region, list]) => (
-                      <section key={region} className="mb-20">
-                        <h2 className="font-serif text-3xl md:text-4xl mb-8 border-b border-ink/10 pb-3">
-                          {region === "Other" ? "Worldwide" : region}
-                        </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
-                          {list.map((h) => (
-                                  <HotelCard key={h.id} hotel={h} />
-                          ))}
-                        </div>
-                      </section>
-              ))}
-              {hotels.length === 0 && (
+              {hotels.length === 0 ? (
                       <div className="text-center py-24 text-ink/60">
-                        No hotels match that filter. Try another city.
+                        No hotels match that filter. Try clearing the search.
+                      </div>
+              ) : (
+                      orderedCountryCodes.map((cc) => {
+                        const cities = byCountry[cc];
+                        const cityNames = Object.keys(cities).sort();
+                        const countryName = COUNTRY_NAMES[cc]?.name ?? cc;
+                        const countryHotelCount = Object.values(cities).reduce((n, list) => n + list.length, 0);
+                        return (
+                                <section key={cc} className="mb-20">
+                                  <div className="flex items-end justify-between border-b border-ink/15 pb-3 mb-8">
+                                    <div>
+                                      <div className="eyebrow mb-1">
+                                        {COUNTRY_NAMES[cc]?.region ?? "Worldwide"}
+                                      </div>
+                                      <h2 className="font-serif text-3xl md:text-4xl">{countryName}</h2>
+                                    </div>
+                                    <div className="text-sm text-ink/60">
+                                      {countryHotelCount} hotel{countryHotelCount === 1 ? "" : "s"}
+                                      {" · "}
+                                      {cityNames.length} cit{cityNames.length === 1 ? "y" : "ies"}
+                                    </div>
+                                  </div>
+                                  {cityNames.map((cityName) => (
+                                          <div key={cityName} className="mb-12">
+                                            <h3 className="font-serif text-xl mb-5 flex items-baseline gap-3">
+                                              <span>{cityName}</span>
+                                              <span className="text-xs text-ink/50 uppercase tracking-[0.15em]">
+                                  {cities[cityName].length} hotel{cities[cityName].length === 1 ? "" : "s"}
+                                </span>
+                                            </h3>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-10">
+                                              {cities[cityName].map((h) => (
+                                                      <HotelCard key={h.id} hotel={h} />
+                                              ))}
+                                            </div>
+                                          </div>
+                                  ))}
+                                </section>
+                        );
+                      })
+              )}
+
+              {renderedCount < totalCount && (
+                      <div className="mt-8 text-center text-sm text-ink/60">
+                        Showing the first {renderedCount.toLocaleString()} hotels of {totalCount.toLocaleString()}.{" "}
+                        Use the filters above to narrow your search.
                       </div>
               )}
             </div>

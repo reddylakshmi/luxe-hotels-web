@@ -63,9 +63,43 @@ export const HOME_QUERY = /* GraphQL */ `
   }
 `;
 
+export const SEARCH_HOTELS_QUERY = /* GraphQL */ `
+  query SearchHotels(
+    $filter: HotelFilter
+    $first: Int
+    $checkIn: Date!
+    $checkOut: Date!
+    $adults: Int!
+  ) {
+    hotels(first: $first, filter: $filter) {
+      totalCount
+      edges {
+        node {
+          id
+          name
+          slug
+          starRating
+          brand { id name tier accentColor }
+          location { address { city countryCode } }
+          guestRating { overall count }
+          media(first: 1, categories: [EXTERIOR]) {
+            edges { node { url altText } }
+          }
+          # Federated reach into the pricing subgraph.
+          availability(checkIn: $checkIn, checkOut: $checkOut, adults: $adults) {
+            nights
+            currency
+            lowestRate { amount currency }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const HOTELS_LIST_QUERY = /* GraphQL */ `
-  query HotelsList($filter: HotelFilter) {
-    hotels(first: 50, filter: $filter) {
+  query HotelsList($filter: HotelFilter, $first: Int) {
+    hotels(first: $first, filter: $filter) {
       totalCount
       edges {
         node {

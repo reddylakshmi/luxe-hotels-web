@@ -46,6 +46,12 @@ export type HotelCard = {
   hasSpa?: boolean;
   hasPool?: boolean;
   hasRestaurants?: boolean;
+  // Populated only when the page asked for availability (search results).
+  availability?: {
+    nights: number;
+    currency: string;
+    lowestRate?: Money | null;
+  } | null;
 };
 
 export type HotelDetail = HotelCard & {

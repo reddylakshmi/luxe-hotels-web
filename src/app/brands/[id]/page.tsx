@@ -7,6 +7,7 @@ import { BRAND_DETAIL_QUERY } from "@/lib/queries";
 import type { BrandDetail, Connection, HotelCard as HotelCardType } from "@/types/graphql";
 import { BrandLogo } from "@/components/BrandLogo";
 import { HotelCard } from "@/components/HotelCard";
+import { SearchBar } from "@/components/SearchBar";
 import { imageUrl } from "@/lib/image";
 
 type Resp = {
@@ -76,9 +77,14 @@ export default async function BrandDetailPage({ params }: { params: { id: string
               </div>
             </section>
 
+            {/* Per-brand search bar */}
+            <section className="container-x py-12">
+              <SearchBar brandId={brand.id} brandName={brand.name} />
+            </section>
+
             {/* About */}
             {brand.description && (
-                    <section className="container-x py-20 grid md:grid-cols-12 gap-10">
+                    <section className="container-x pb-20 grid md:grid-cols-12 gap-10">
                       <div className="md:col-span-4">
                         <div className="eyebrow mb-3">About the brand</div>
                         <h2 className="font-serif text-4xl">A signature of the Luxe family.</h2>

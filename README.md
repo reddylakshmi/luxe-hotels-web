@@ -23,6 +23,10 @@ Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federa
 
 The home page issues a single federated query that reaches `featuredHotels`, `featuredArticles`, `travelInspirations`, `dealSpotlights`, and `brandStory` in one round-trip — Apollo Router fans out to the right subgraphs.
 
+> **GraphQL queries reference:** [`GRAPHQL.md`](./GRAPHQL.md) lists every
+> operation the web app sends, what page it powers, and which subgraphs it
+> touches. Read this if you want to learn how the data is composed.
+
 ## Run it locally
 
 **1.** Make sure the federated backend is running on `http://localhost:4000/`:

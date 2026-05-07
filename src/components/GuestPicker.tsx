@@ -60,7 +60,7 @@ export function GuestPicker({
                     aria-expanded={open}
                     className="w-full text-left px-5 py-3 block focus:outline-none"
             >
-              <div className={`text-[10px] uppercase tracking-[0.2em] ${labelClr} mb-1`}>Guests</div>
+              <div className={`text-[10px] uppercase tracking-[0.2em] ${labelClr} mb-1`}>Rooms and Guests</div>
               <div className="text-sm py-1 truncate">{summarise(state)}</div>
             </button>
 

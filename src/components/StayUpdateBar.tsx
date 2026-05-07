@@ -36,29 +36,23 @@ export function StayUpdateBar({
           method="get"
           className="grid grid-cols-1 md:grid-cols-[1.4fr_1.4fr_auto_auto] items-end gap-4"
         >
-          {/* Stay dates */}
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-ink/55 mb-2">Stay Dates</div>
-            <DateRangePicker
-              defaultCheckIn={defaults.checkIn}
-              defaultCheckOut={defaults.checkOut}
-              theme="cream"
-            />
-          </div>
+          {/* Stay dates — DateRangePicker has its own internal label */}
+          <DateRangePicker
+            defaultCheckIn={defaults.checkIn}
+            defaultCheckOut={defaults.checkOut}
+            theme="cream"
+          />
 
-          {/* Rooms and Guests */}
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-ink/55 mb-2">Rooms and Guests</div>
-            <GuestPicker
-              initial={{
-                rooms: defaults.rooms,
-                adults: defaults.adults,
-                children: defaults.children,
-                childAges: defaults.childAges,
-              }}
-              theme="cream"
-            />
-          </div>
+          {/* Rooms and Guests — GuestPicker has its own internal label */}
+          <GuestPicker
+            initial={{
+              rooms: defaults.rooms,
+              adults: defaults.adults,
+              children: defaults.children,
+              childAges: defaults.childAges,
+            }}
+            theme="cream"
+          />
 
           {/* Use Points checkbox */}
           <label className="flex items-center gap-2 cursor-pointer h-12 px-4 border border-ink/15 bg-cream/95">

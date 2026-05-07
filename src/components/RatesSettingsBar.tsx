@@ -9,7 +9,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 type StayLite = { checkIn: string; checkOut: string; nights: number };
 type GuestsLite = { rooms: number; adults: number; children: number; childAges: number[] };
 
-const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "AED", "INR"];
+// Full set of currencies the platform supports — must mirror the FX_TO_USD
+// table in PricingMockDataSource. Popular ones at the top, the rest sorted
+// alphabetically so users searching the dropdown find them by typing.
+const POPULAR_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "AED", "INR"] as const;
+const ALL_CURRENCIES = [
+  "AED", "ARS", "AUD", "BRL", "CAD", "CHF", "CLP", "CNY", "CZK", "DKK",
+  "EGP", "EUR", "GBP", "HKD", "HUF", "IDR", "ILS", "INR", "ISK", "JOD",
+  "JPY", "KES", "KRW", "LKR", "MAD", "MXN", "MYR", "NOK", "NZD", "OMR",
+  "PEN", "PHP", "PLN", "QAR", "SAR", "SEK", "SGD", "THB", "TWD", "USD",
+  "VND", "ZAR",
+] as const;
+const OTHER_CURRENCIES = ALL_CURRENCIES.filter((c) => !POPULAR_CURRENCIES.includes(c as never));
 
 export function RatesSettingsBar({
   hotelId,
@@ -57,11 +68,20 @@ export function RatesSettingsBar({
           onChange={(e) => router.push(rebuild({ currency: e.target.value }))}
           className="border border-ink/15 bg-cream px-3 py-2 text-sm focus:outline-none focus:border-goldDeep"
         >
-          {CURRENCIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
+          <optgroup label="Popular">
+            {POPULAR_CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="All currencies">
+            {OTHER_CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </label>
       <label className="flex items-center gap-2 cursor-pointer">

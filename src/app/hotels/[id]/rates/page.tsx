@@ -62,7 +62,6 @@ export default async function RatesPage({
   }
 
   const hotel = data.hotel;
-  const heroImage = hotel.media?.edges?.[0]?.node;
   const addressBits = [
     hotel.location.address.line1,
     hotel.location.address.line2,
@@ -76,22 +75,13 @@ export default async function RatesPage({
     <>
       {/* ── Hotel header ─────────────────────────────────────────────── */}
       <section className="bg-ink text-cream">
-        <div className="container-x py-10 md:py-14 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <BrandLogo brand={hotel.brand} size="md" />
-            <div>
-              <div className="eyebrow text-cream/70 mb-1">{hotel.brand.name}</div>
-              <h1 className="font-serif text-3xl md:text-4xl leading-tight">{hotel.name}</h1>
-              <p className="text-cream/70 text-sm mt-1">{addressBits.join(", ")}</p>
-            </div>
+        <div className="container-x py-10 md:py-14 flex items-center gap-5">
+          <BrandLogo brand={hotel.brand} size="md" />
+          <div>
+            <div className="eyebrow text-cream/70 mb-1">{hotel.brand.name}</div>
+            <h1 className="font-serif text-3xl md:text-4xl leading-tight">{hotel.name}</h1>
+            <p className="text-cream/70 text-sm mt-1">{addressBits.join(", ")}</p>
           </div>
-          {heroImage?.url && (
-            <img
-              src={heroImage.url}
-              alt={heroImage.altText || hotel.name}
-              className="w-full md:w-64 h-32 object-cover rounded-sm"
-            />
-          )}
         </div>
       </section>
 

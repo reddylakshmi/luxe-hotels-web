@@ -3,7 +3,7 @@
 
 export const HOME_QUERY = /* GraphQL */ `
   query Home {
-    featuredHotels(first: 6) {
+    featuredHotels(first: 9) {
       id
       name
       slug
@@ -176,6 +176,84 @@ export const HOTEL_DETAIL_QUERY = /* GraphQL */ `
       }
       experiences { id name durationMinutes pricePerPerson { amount currency } category }
       eventSpaces { id name capacityStyles { setup capacity } }
+    }
+  }
+`;
+
+export const RATES_QUERY = /* GraphQL */ `
+  query HotelRates(
+    $id: ID!
+    $checkIn: Date!
+    $checkOut: Date!
+    $adults: Int!
+    $children: Int
+    $currency: String
+  ) {
+    hotel(id: $id) {
+      id
+      name
+      slug
+      starRating
+      brand { id name tier accentColor logoUrl }
+      location {
+        address { line1 line2 city state postalCode countryCode }
+        coordinates { latitude longitude }
+      }
+      media(first: 1, categories: [EXTERIOR]) {
+        edges { node { url altText } }
+      }
+      availability(
+        checkIn: $checkIn
+        checkOut: $checkOut
+        adults: $adults
+        children: $children
+        currency: $currency
+      ) {
+        nights
+        currency
+        lowestRate { amount currency }
+        roomAvailabilities {
+          availableCount
+          roomType {
+            id
+            code
+            name
+            category
+            sizeSqm
+            view
+            maxOccupancy { adults children }
+            bedConfiguration { type count }
+            description { text }
+          }
+          rates {
+            id
+            ratePlan {
+              id
+              code
+              name
+              type
+              description
+              refundable
+              breakfastIncluded
+              loyaltyEligible
+              loyaltyMultiplier
+              cancellationPolicy { type description deadlineHours }
+            }
+            averageNightlyRate { amount currency }
+            totalRate { amount currency }
+            totalWithTaxes { amount currency }
+            taxesAndFees {
+              subtotal { amount }
+              taxes { amount }
+              fees { amount }
+              total { amount }
+            }
+            pointsEarned
+            availableRooms
+            rateToken
+          }
+        }
+      }
     }
   }
 `;

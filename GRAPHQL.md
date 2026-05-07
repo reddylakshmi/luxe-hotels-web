@@ -48,7 +48,7 @@ deals, brand story).
 
 ```graphql
 query Home {
-  featuredHotels(first: 6) {
+  featuredHotels(first: 9) {
     id name slug starRating
     brand { id name tier accentColor }
     location { address { city countryCode } }

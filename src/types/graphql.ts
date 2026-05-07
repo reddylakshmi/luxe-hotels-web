@@ -6,6 +6,7 @@ export type Money = { amount: string; currency: string };
 export type LocalizedText = { text: string };
 export type Address = {
   line1?: string | null;
+  line2?: string | null;
   city: string;
   state?: string | null;
   postalCode?: string | null;
@@ -153,6 +154,73 @@ export type BrandStory = {
   title: LocalizedText;
   tagline: LocalizedText;
   pillars: { code: string; title: LocalizedText; description: LocalizedText; icon?: string | null }[];
+};
+
+// ── Rate-page types ──────────────────────────────────────────────────────────
+
+export type RatePlan = {
+  id: string;
+  code: string;
+  name: string;
+  type: string; // BEST_AVAILABLE | MEMBER_RATE | PACKAGE | ADVANCE_PURCHASE | CORPORATE | REDEMPTION
+  description?: string | null;
+  refundable: boolean;
+  breakfastIncluded: boolean;
+  loyaltyEligible: boolean;
+  loyaltyMultiplier?: number | null;
+  cancellationPolicy?: { type: string; description: string; deadlineHours?: number | null } | null;
+};
+
+export type Rate = {
+  id: string;
+  ratePlan: RatePlan;
+  averageNightlyRate: Money;
+  totalRate: Money;
+  totalWithTaxes: Money;
+  taxesAndFees: {
+    subtotal: { amount: string };
+    taxes: { amount: string };
+    fees: { amount: string };
+    total: { amount: string };
+  };
+  pointsEarned: number;
+  availableRooms: number;
+  rateToken: string;
+};
+
+export type RoomAvailability = {
+  availableCount: number;
+  roomType: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    sizeSqm?: number | null;
+    view?: string | null;
+    maxOccupancy: { adults: number; children: number };
+    bedConfiguration: { type: string; count: number }[];
+    description?: LocalizedText | null;
+  };
+  rates: Rate[];
+};
+
+export type HotelRates = {
+  id: string;
+  name: string;
+  slug: string;
+  starRating: number;
+  brand: Brand;
+  location: {
+    address: Address;
+    coordinates?: { latitude: number; longitude: number } | null;
+  };
+  media: { edges: MediaEdge[] };
+  availability: {
+    nights: number;
+    currency: string;
+    lowestRate?: Money | null;
+    roomAvailabilities: RoomAvailability[];
+  } | null;
 };
 
 export type HomeData = {

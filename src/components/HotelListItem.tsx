@@ -25,7 +25,9 @@ export function HotelListItem({
   const total = lowest && nights > 0 ? Number(lowest.amount) : null;
   const perNight = total !== null ? total / nights : null;
 
-  const reservationLink = `/hotels/${hotel.id}?checkIn=${checkIn}&checkOut=${checkOut}&adults=${adults}`;
+  const stayParams = `checkIn=${checkIn}&checkOut=${checkOut}&adults=${adults}`;
+  const reservationLink = `/hotels/${hotel.id}/rates?${stayParams}`;
+  const detailLink = `/hotels/${hotel.id}?${stayParams}`;
 
   const badges: string[] = [];
   if (hotel.hasFreeBreakfast) badges.push("Free breakfast");

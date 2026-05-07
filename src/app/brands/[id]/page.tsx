@@ -79,7 +79,7 @@ export default async function BrandDetailPage({ params }: { params: { id: string
 
             {/* Per-brand search bar */}
             <section className="container-x py-12">
-              <SearchBar brandId={brand.id} brandName={brand.name} />
+              <SearchBar brandId={brand.id} brandName={brand.name} variant="compact" />
             </section>
 
             {/* About */}

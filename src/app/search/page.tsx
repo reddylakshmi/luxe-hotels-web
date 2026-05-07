@@ -3,12 +3,19 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
 import { SEARCH_HOTELS_QUERY } from "@/lib/queries";
-import type { Connection, HotelCard as HotelCardType } from "@/types/graphql";
-import { fromSearchParams, withDefaults, nightsBetween } from "@/lib/search";
+import type { Brand, Connection, HotelCard as HotelCardType, HotelFacets } from "@/types/graphql";
+import { fromSearchParams, withDefaults } from "@/lib/search";
+import { fmtDate } from "@/lib/stay";
 import { SearchBar } from "@/components/SearchBar";
-import { imageUrl } from "@/lib/image";
+import { FilterBar } from "@/components/FilterBar";
+import { HotelListItem } from "@/components/HotelListItem";
+import { SortDropdown } from "@/components/SortDropdown";
 
-type Resp = { hotels: Connection<HotelCardType> };
+type Resp = {
+  hotels: Connection<HotelCardType>;
+  brands: { edges: { node: Brand }[] };
+  facets: HotelFacets;
+};
 
 const RESULTS_PER_PAGE = 60;
 
@@ -19,12 +26,26 @@ export default async function SearchPage({
 }) {
   const input = withDefaults(fromSearchParams(searchParams));
 
+  // Build the federated HotelFilter input — only include keys the user
+  // actually picked so the URL → API contract stays predictable.
   const filter: Record<string, unknown> = {};
   if (input.destination) filter.query = input.destination;
   if (input.brandId) filter.brandIds = [input.brandId];
+  else if (input.brandIds?.length) filter.brandIds = input.brandIds;
+  if (input.brandTiers?.length) filter.brandTiers = input.brandTiers;
+  if (input.minStarRating) filter.minStarRating = input.minStarRating;
+  if (input.minGuestRating) filter.minGuestRating = input.minGuestRating;
+  if (input.hasPool) filter.hasPool = true;
+  if (input.hasSpa) filter.hasSpa = true;
+  if (input.hasGolf) filter.hasGolf = true;
+  if (input.hasFreeBreakfast) filter.hasFreeBreakfast = true;
+  if (input.petsAllowed) filter.petsAllowed = true;
+  if (input.minNightlyRate != null) filter.minNightlyRate = input.minNightlyRate;
+  if (input.maxNightlyRate != null) filter.maxNightlyRate = input.maxNightlyRate;
   filter.checkIn = input.checkIn;
   filter.checkOut = input.checkOut;
   filter.adults = input.adults;
+  if (input.children > 0) filter.children = input.children;
 
   let data: Resp | null = null;
   let error: string | null = null;
@@ -35,6 +56,8 @@ export default async function SearchPage({
       checkIn: input.checkIn,
       checkOut: input.checkOut,
       adults: input.adults,
+      children: input.children,
+      sortBy: input.sortBy ?? null,
     });
   } catch (e) {
     error = (e as Error).message;
@@ -42,37 +65,54 @@ export default async function SearchPage({
 
   const hotels = data?.hotels.edges.map((e) => e.node) ?? [];
   const totalCount = data?.hotels.totalCount ?? 0;
-  const nights = nightsBetween(input.checkIn, input.checkOut);
+  const allBrands = data?.brands.edges.map((e) => e.node) ?? [];
+  const facets = data?.facets;
 
   return (
           <>
-            {/* Re-show the search bar at the top so users can refine. */}
+            {/* Refinement search bar — full variant on the results page */}
             <section className="bg-ink text-cream">
               <div className="container-x py-12 md:py-16">
                 <div className="eyebrow text-cream/70 mb-3">Search results</div>
                 <h1 className="font-serif text-4xl md:text-5xl leading-tight mb-6">
-                  {input.destination
-                          ? `Hotels matching "${input.destination}"`
-                          : input.brandId
-                                  ? "Find a hotel"
-                                  : "Find a hotel"}
+                  {input.destination ? `Hotels matching "${input.destination}"` : "Find a hotel"}
                 </h1>
                 <SearchBar
                         theme="ink"
+                        variant="full"
                         brandId={input.brandId || undefined}
                         defaults={{
                           destination: input.destination,
                           checkIn: input.checkIn,
                           checkOut: input.checkOut,
+                          nights: input.nights,
+                          rooms: input.rooms,
                           adults: input.adults,
+                          children: input.children,
+                          childAges: input.childAges,
                         }}
                 />
-                <div className="mt-4 text-sm text-cream/70">
-                  {fmtDate(input.checkIn)} → {fmtDate(input.checkOut)} · {nights} night
-                  {nights === 1 ? "" : "s"} · {input.adults} adult{input.adults === 1 ? "" : "s"}
+                <div className="mt-4 text-sm text-cream/70 flex flex-wrap gap-x-2 gap-y-1">
+              <span>
+                {fmtDate(input.checkIn)} → {fmtDate(input.checkOut)} · {input.nights} night
+                {input.nights === 1 ? "" : "s"}
+              </span>
+                  <span aria-hidden>·</span>
+                  <span>
+                {input.adults} adult{input.adults === 1 ? "" : "s"}
+                    {input.children > 0 && (
+                            <>
+                              {" · "}
+                              {input.children} child{input.children === 1 ? "" : "ren"} (ages{" "}
+                              {input.childAges.join(", ")})
+                            </>
+                    )}
+                    {" · "}
+                    {input.rooms} room{input.rooms === 1 ? "" : "s"}
+              </span>
                   {input.brandId && (
                           <>
-                            {" · "}
+                            <span aria-hidden>·</span>
                             <Link href={`/brands/${input.brandId}`} className="underline hover:no-underline">
                               Brand-scoped
                             </Link>
@@ -82,6 +122,8 @@ export default async function SearchPage({
               </div>
             </section>
 
+            <FilterBar active={input} brands={allBrands} facets={facets} />
+
             <div className="container-x py-12">
               {error && (
                       <div className="text-center py-20 text-ink/60">
@@ -90,12 +132,14 @@ export default async function SearchPage({
               )}
               {!error && hotels.length === 0 && (
                       <div className="text-center py-20 text-ink/60">
-                        No matching hotels found. Try a different destination or clear the filters.
+                        No matching hotels found. Try clearing some filters.
                       </div>
               )}
               {!error && hotels.length > 0 && (
                       <>
-                        <div className="flex items-end justify-between mb-8">
+                        {/* Header row spans the full result-list width — sort
+                            dropdown sits flush against the right edge of the cards. */}
+                        <div className="mb-8 flex items-center justify-between gap-6 flex-wrap">
                           <div>
                             <div className="eyebrow mb-2">Available stays</div>
                             <h2 className="font-serif text-3xl">
@@ -103,17 +147,18 @@ export default async function SearchPage({
                               {totalCount.toLocaleString()} hotel{totalCount === 1 ? "" : "s"} match
                             </h2>
                           </div>
-                          <div className="text-xs text-ink/60">
-                            Sorted by relevance · prices in hotel currency
-                          </div>
+                          <SortDropdown
+                                  currentSortBy={input.sortBy}
+                                  currentSearchParams={searchParams}
+                          />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
+                        <div className="flex flex-col gap-6">
                           {hotels.map((h) => (
-                                  <SearchResultCard
+                                  <HotelListItem
                                           key={h.id}
                                           hotel={h}
-                                          nights={nights}
+                                          nights={input.nights}
                                           checkIn={input.checkIn}
                                           checkOut={input.checkOut}
                                           adults={input.adults}
@@ -125,95 +170,4 @@ export default async function SearchPage({
             </div>
           </>
   );
-}
-
-function SearchResultCard({
-                            hotel,
-                            nights,
-                            checkIn,
-                            checkOut,
-                            adults,
-                          }: {
-  hotel: HotelCardType;
-  nights: number;
-  checkIn: string;
-  checkOut: string;
-  adults: number;
-}) {
-  const img = hotel.media?.edges?.[0]?.node?.url;
-  const city = hotel.location?.address?.city;
-  const country = hotel.location?.address?.countryCode;
-  const lowest = hotel.availability?.lowestRate;
-  const total = lowest && nights > 0 ? Number(lowest.amount) : null;
-  const perNight = total !== null ? total / nights : null;
-
-  const reservationLink = `/hotels/${hotel.id}?checkIn=${checkIn}&checkOut=${checkOut}&adults=${adults}`;
-
-  return (
-          <article className="group bg-cream">
-            <Link href={reservationLink} className="block">
-              <div className="relative aspect-[4/3] overflow-hidden">
-                <img
-                        src={imageUrl(img, { w: 800, h: 600 })}
-                        alt={hotel.name}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
-                />
-                {hotel.brand?.tier && (
-                        <div className="absolute top-4 left-4 bg-cream/95 px-3 py-1 text-[10px] uppercase tracking-[0.2em]">
-                          {hotel.brand.tier}
-                        </div>
-                )}
-              </div>
-              <div className="pt-5 pb-2">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-ink/60 mb-2">
-                  {city}{country ? `, ${country}` : ""}
-                </div>
-                <h3 className="font-serif text-2xl leading-tight mb-2 group-hover:text-goldDeep">
-                  {hotel.name}
-                </h3>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-1 text-gold">
-                    {Array.from({ length: hotel.starRating }).map((_, i) => <span key={i}>★</span>)}
-                  </div>
-                  {hotel.guestRating && (
-                          <span className="text-ink/70">
-                  {hotel.guestRating.overall.toFixed(1)} · {hotel.guestRating.count} reviews
-                </span>
-                  )}
-                </div>
-              </div>
-            </Link>
-
-            <div className="border-t border-ink/10 mt-3 pt-3 flex items-end justify-between">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-ink/60 mb-1">
-                  {nights} night{nights === 1 ? "" : "s"} · {adults} adult{adults === 1 ? "" : "s"}
-                </div>
-                {perNight !== null && lowest ? (
-                        <div className="text-ink">
-                          <span className="font-serif text-2xl">
-                            {Math.round(perNight).toLocaleString()}
-                          </span>
-                          <span className="text-ink/60 text-sm ml-1">{lowest.currency} / night</span>
-                          <div className="text-xs text-ink/60">
-                            {Math.round(total!).toLocaleString()} {lowest.currency} total
-                          </div>
-                        </div>
-                ) : (
-                        <div className="text-sm text-ink/60">Rates available on inquiry.</div>
-                )}
-              </div>
-              <Link href={reservationLink} className="btn-ghost text-xs px-4 py-2 whitespace-nowrap">
-                View rates
-              </Link>
-            </div>
-          </article>
-  );
-}
-
-function fmtDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }

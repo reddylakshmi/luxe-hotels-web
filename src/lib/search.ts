@@ -1,6 +1,10 @@
 // Search-bar input handling. Centralised here so the home page, brand pages,
 // and the search results page share the same parsing/serialising rules.
 
+import { fromSearchParams as guestsFrom, toSearchParams as guestsTo, DEFAULT_GUESTS } from "@/lib/guests";
+import { resolveStay } from "@/lib/stay";
+import type { StayWindow } from "@/lib/stay";
+
 export type SearchInput = {
   /** Free-text destination — matches hotel name OR city via HotelFilter.query. */
   destination?: string;
@@ -8,38 +12,87 @@ export type SearchInput = {
   checkIn?: string;
   /** ISO date YYYY-MM-DD. */
   checkOut?: string;
+  /** Whole nights between checkIn and checkOut. */
+  nights?: number;
   /** Adult guest count. */
   adults?: number;
+  /** Children count. */
+  children?: number;
+  /** Each child's age (length === children). */
+  childAges?: number[];
+  /** Number of rooms requested. */
+  rooms?: number;
   /** Optional brand to scope the search to. */
   brandId?: string;
+  // ── Result-page filters ──
+  brandIds?: string[];
+  brandTiers?: string[];
+  minStarRating?: number;
+  minGuestRating?: number;
+  hasPool?: boolean;
+  hasSpa?: boolean;
+  hasGolf?: boolean;
+  hasFreeBreakfast?: boolean;
+  petsAllowed?: boolean;
+  minNightlyRate?: number;
+  maxNightlyRate?: number;
+  sortBy?: SortKey;
 };
 
-const DEFAULT_NIGHTS = 3;
-const DEFAULT_LEAD_DAYS = 30;
-const DEFAULT_ADULTS = 2;
+/** UI-facing keys that map 1:1 onto the GraphQL HotelSortField enum. */
+export type SortKey =
+        | "DISTANCE"
+        | "PRICE_LOW_TO_HIGH"
+        | "CITY"
+        | "BRAND"
+        | "GUEST_RATING"
+        | "REVIEWS";
+
+export type ResolvedSearch = SearchInput & StayWindow & {
+  rooms: number;
+  adults: number;
+  children: number;
+  childAges: number[];
+  destination: string;
+  brandId: string;
+};
 
 /**
  * Apply the same defaulting the server applies, so home → /search and brand →
  * /search both produce identical filter inputs when the user leaves fields
- * blank. Defaults: stay 3 nights, 30 days from today, 2 adults.
+ * blank.
  */
-export function withDefaults(input: SearchInput): Required<SearchInput> & { adults: number } {
-  const today = new Date();
-  const checkIn = input.checkIn?.trim() || isoOffset(today, DEFAULT_LEAD_DAYS);
-  const checkOut = input.checkOut?.trim() || isoOffset(parseISO(checkIn), DEFAULT_NIGHTS);
+export function withDefaults(input: SearchInput): ResolvedSearch {
+  const stay = resolveStay({ checkIn: input.checkIn, checkOut: input.checkOut, nights: input.nights });
+  const guests = guestsFrom({
+    rooms: input.rooms != null ? String(input.rooms) : undefined,
+    adults: input.adults != null ? String(input.adults) : undefined,
+    children: input.children != null ? String(input.children) : undefined,
+    childAges: input.childAges?.join(","),
+  });
   return {
     destination: (input.destination ?? "").trim(),
-    checkIn,
-    checkOut,
-    adults: clamp(input.adults ?? DEFAULT_ADULTS, 1, 10),
+    checkIn: stay.checkIn,
+    checkOut: stay.checkOut,
+    nights: stay.nights,
+    rooms: guests.rooms,
+    adults: guests.adults,
+    children: guests.children,
+    childAges: guests.childAges,
     brandId: (input.brandId ?? "").trim(),
+    brandIds: input.brandIds,
+    brandTiers: input.brandTiers,
+    minStarRating: input.minStarRating,
+    minGuestRating: input.minGuestRating,
+    hasPool: input.hasPool,
+    hasSpa: input.hasSpa,
+    hasGolf: input.hasGolf,
+    hasFreeBreakfast: input.hasFreeBreakfast,
+    petsAllowed: input.petsAllowed,
+    minNightlyRate: input.minNightlyRate,
+    maxNightlyRate: input.maxNightlyRate,
+    sortBy: input.sortBy,
   };
-}
-
-export function nightsBetween(checkIn: string, checkOut: string): number {
-  const a = parseISO(checkIn).getTime();
-  const b = parseISO(checkOut).getTime();
-  return Math.max(0, Math.round((b - a) / 86_400_000));
 }
 
 export function buildSearchUrl(input: SearchInput): string {
@@ -48,7 +101,11 @@ export function buildSearchUrl(input: SearchInput): string {
   if (norm.destination) sp.set("destination", norm.destination);
   sp.set("checkIn", norm.checkIn);
   sp.set("checkOut", norm.checkOut);
-  sp.set("adults", String(norm.adults));
+  for (const [k, v] of Object.entries(
+          guestsTo({
+            rooms: norm.rooms, adults: norm.adults,
+            children: norm.children, childAges: norm.childAges,
+          }))) sp.set(k, v);
   if (norm.brandId) sp.set("brandId", norm.brandId);
   return `/search?${sp.toString()}`;
 }
@@ -56,29 +113,66 @@ export function buildSearchUrl(input: SearchInput): string {
 /** Convert NEXT_URL searchParams (Record<string, string|string[]>) to SearchInput. */
 export function fromSearchParams(p: Record<string, string | string[] | undefined>): SearchInput {
   const pick = (k: string) => (Array.isArray(p[k]) ? p[k]?.[0] : (p[k] as string | undefined));
-  const adultsRaw = pick("adults");
+  const pickAll = (k: string) => {
+    const v = p[k];
+    if (Array.isArray(v)) return v.flatMap((s) => s.split(","));
+    if (typeof v === "string" && v.length > 0) return v.split(",");
+    return undefined;
+  };
+  const nightsStr = pick("nights");
+  const guests = guestsFrom(p);
   return {
     destination: pick("destination"),
     checkIn: pick("checkIn"),
     checkOut: pick("checkOut"),
-    adults: adultsRaw ? Number(adultsRaw) : undefined,
+    nights: nightsStr ? parseInt(nightsStr, 10) : undefined,
+    rooms: guests.rooms,
+    adults: guests.adults,
+    children: guests.children,
+    childAges: guests.childAges,
     brandId: pick("brandId"),
+    brandIds: pickAll("brandIds"),
+    brandTiers: pickAll("brandTiers"),
+    minStarRating: parseIntOpt(pick("minStarRating")),
+    minGuestRating: parseFloatOpt(pick("minGuestRating")),
+    hasPool: parseBoolOpt(pick("hasPool")),
+    hasSpa: parseBoolOpt(pick("hasSpa")),
+    hasGolf: parseBoolOpt(pick("hasGolf")),
+    hasFreeBreakfast: parseBoolOpt(pick("hasFreeBreakfast")),
+    petsAllowed: parseBoolOpt(pick("petsAllowed")),
+    minNightlyRate: parseFloatOpt(pick("minNightlyRate")),
+    maxNightlyRate: parseFloatOpt(pick("maxNightlyRate")),
+    sortBy: parseSortKey(pick("sortBy")),
   };
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────
+const SORT_KEYS: ReadonlySet<SortKey> = new Set([
+  "DISTANCE", "PRICE_LOW_TO_HIGH", "CITY", "BRAND", "GUEST_RATING", "REVIEWS",
+]);
 
-function isoOffset(base: Date, days: number): string {
-  const d = new Date(base);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+function parseSortKey(v: string | undefined): SortKey | undefined {
+  if (!v) return undefined;
+  return SORT_KEYS.has(v as SortKey) ? (v as SortKey) : undefined;
 }
 
-function parseISO(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+function parseIntOpt(v: string | undefined): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : undefined;
 }
 
-function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
+function parseFloatOpt(v: string | undefined): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : undefined;
 }
+
+function parseBoolOpt(v: string | undefined): boolean | undefined {
+  if (v == null) return undefined;
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  return undefined;
+}
+
+// Re-export so callers don't have to import from two modules.
+export { DEFAULT_GUESTS };

@@ -30,6 +30,20 @@ export type Brand = {
 export type BrandDetail = Brand & {
   featuredHotels: HotelCard[];
 };
+
+export type HotelFacets = {
+  totalCount: number;
+  byBrand: { brandId: string; count: number; brand: { id: string; name: string; tier?: string | null } }[];
+  byBrandTier: { tier: string; count: number }[];
+  amenities: {
+    hasFreeBreakfast: number;
+    hasPool: number;
+    hasSpa: number;
+    hasGolf: number;
+    petsAllowed: number;
+  };
+  guestRating: { minRating: number; count: number }[];
+};
 export type GuestRating = { overall: number; count: number };
 export type MediaEdge = { node: { url: string; altText?: string | null; thumbnailUrl?: string | null; category?: string | null } };
 export type Connection<T> = { totalCount: number; edges: { node: T }[] };
@@ -45,7 +59,10 @@ export type HotelCard = {
   media: { edges: MediaEdge[] };
   hasSpa?: boolean;
   hasPool?: boolean;
+  hasGolf?: boolean;
   hasRestaurants?: boolean;
+  hasFreeBreakfast?: boolean;
+  petsAllowed?: boolean;
   // Populated only when the page asked for availability (search results).
   availability?: {
     nights: number;

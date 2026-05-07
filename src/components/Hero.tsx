@@ -25,7 +25,7 @@ export function Hero() {
                 </p>
               </div>
               <div className="fade-rise" style={{ animationDelay: "120ms" }}>
-                <SearchBar />
+                <SearchBar variant="compact" />
               </div>
             </div>
           </section>

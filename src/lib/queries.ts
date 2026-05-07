@@ -70,8 +70,10 @@ export const SEARCH_HOTELS_QUERY = /* GraphQL */ `
     $checkIn: Date!
     $checkOut: Date!
     $adults: Int!
+    $children: Int
+    $sortBy: HotelSortField
   ) {
-    hotels(first: $first, filter: $filter) {
+    hotels(first: $first, filter: $filter, sortBy: $sortBy) {
       totalCount
       edges {
         node {
@@ -85,14 +87,30 @@ export const SEARCH_HOTELS_QUERY = /* GraphQL */ `
           media(first: 1, categories: [EXTERIOR]) {
             edges { node { url altText } }
           }
+          hasPool
+          hasSpa
+          hasGolf
+          hasFreeBreakfast
+          petsAllowed
           # Federated reach into the pricing subgraph.
-          availability(checkIn: $checkIn, checkOut: $checkOut, adults: $adults) {
+          availability(checkIn: $checkIn, checkOut: $checkOut,
+                       adults: $adults, children: $children) {
             nights
             currency
             lowestRate { amount currency }
           }
         }
       }
+    }
+    brands(first: 30) {
+      edges { node { id code name tier accentColor numberOfProperties } }
+    }
+    facets: hotelFacets(filter: $filter) {
+      totalCount
+      byBrand { brandId count brand { id name tier } }
+      byBrandTier { tier count }
+      amenities { hasFreeBreakfast hasPool hasSpa hasGolf petsAllowed }
+      guestRating { minRating count }
     }
   }
 `;

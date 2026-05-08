@@ -7,6 +7,8 @@ import { HOTEL_DETAIL_QUERY } from "@/lib/queries";
 import type { HotelDetail } from "@/types/graphql";
 import { imageUrl } from "@/lib/image";
 import { RecentlyViewedTracker } from "@/components/RecentlyViewedTracker";
+import { HotelTabs } from "@/components/HotelTabs";
+import type { HotelTabId } from "@/lib/hotelTabs";
 
 type Resp = { hotel: HotelDetail | null };
 
@@ -37,61 +39,71 @@ export default async function HotelDetailPage({ params }: { params: { id: string
               </div>
             </section>
 
-            {/* Sticky CTA */}
-            <div className="border-b border-ink/10 sticky top-16 bg-cream z-30">
-              <div className="container-x py-4 flex items-center justify-between gap-6 overflow-x-auto">
-                <nav className="flex gap-6 text-sm">
-                  <a href="#about" className="hover:text-goldDeep">Overview</a>
-                  <a href="#rooms" className="hover:text-goldDeep">Rooms &amp; Suites</a>
-                  <a href="#experiences" className="hover:text-goldDeep">Experiences</a>
-                  <a href="#meetings" className="hover:text-goldDeep">Meetings</a>
-                  <a href="#location" className="hover:text-goldDeep">Location</a>
-                </nav>
-                <Link href="#rooms" className="btn-primary text-xs px-4 py-2 whitespace-nowrap">Book a Room</Link>
-              </div>
-            </div>
+            <HotelTabs
+                    panels={buildHotelPanels(h, city, galleryUrls)}
+                    primaryAction={
+                      <Link href="#rooms" className="btn-primary text-xs px-4 py-2 whitespace-nowrap">
+                        Book a Room
+                      </Link>
+                    }
+            />
+          </>
+  );
+}
 
-            {/* About + amenities */}
-            <section id="about" className="container-x py-20 grid md:grid-cols-12 gap-12">
-              <div className="md:col-span-7">
-                <div className="eyebrow mb-3">About this property</div>
-                <h2 className="font-serif text-4xl mb-5">A {h.brand.tier?.toLowerCase()} address in {city}.</h2>
-                <p className="text-ink/80 leading-relaxed mb-6">
-                  {h.brand.tagline ?? `${h.name} brings the Luxe philosophy to ${city} — quiet rooms, considered service, and the rare details that locals notice.`}
-                </p>
-                <p className="text-ink/70 leading-relaxed">{h.brand.description}</p>
-              </div>
-              <aside className="md:col-span-5 bg-cream border border-ink/10 p-6">
-                <div className="eyebrow mb-4">Property facts</div>
-                <dl className="grid grid-cols-2 gap-y-4 text-sm">
-                  <Fact label="Brand">{h.brand.name}</Fact>
-                  <Fact label="Tier">{h.brand.tier?.toLowerCase()}</Fact>
-                  <Fact label="Stars">{h.starRating}-star</Fact>
-                  <Fact label="Total rooms">{h.totalRooms}</Fact>
-                  {h.openedYear && <Fact label="Opened">{h.openedYear}</Fact>}
-                  <Fact label="Spa">{h.hasSpa ? "Yes" : "—"}</Fact>
-                  <Fact label="Pool">{h.hasPool ? "Yes" : "—"}</Fact>
-                  <Fact label="Restaurants">{h.hasRestaurants ? "Yes" : "—"}</Fact>
-                </dl>
-              </aside>
-            </section>
-
-            {/* Gallery strip */}
-            {galleryUrls.length > 0 && (
-                    <section className="container-x mb-20">
-                      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-                        {galleryUrls.map((url, i) => (
-                                <div key={i} className="relative aspect-square overflow-hidden">
-                                  <img src={url} alt="" className="w-full h-full object-cover" />
-                                </div>
-                        ))}
-                      </div>
-                    </section>
-            )}
-
-            {/* Rooms */}
-            <section id="rooms" className="bg-sand">
-              <div className="container-x py-20">
+/**
+ * Build the five hotel-detail panels (overview / rooms / experiences /
+ * meetings / location). Lives next to the page component because each
+ * panel is tightly coupled to the HotelDetail type — splitting them into
+ * separate files would require dragging the type along.
+ */
+function buildHotelPanels(
+        h: HotelDetail,
+        city: string,
+        galleryUrls: string[],
+): Record<HotelTabId, React.ReactNode> {
+  return {
+    overview: (
+            <>
+              <section className="container-x py-16 grid md:grid-cols-12 gap-12">
+                <div className="md:col-span-7">
+                  <div className="eyebrow mb-3">About this property</div>
+                  <h2 className="font-serif text-4xl mb-5">A {h.brand.tier?.toLowerCase()} address in {city}.</h2>
+                  <p className="text-ink/80 leading-relaxed mb-6">
+                    {h.brand.tagline ?? `${h.name} brings the Luxe philosophy to ${city} — quiet rooms, considered service, and the rare details that locals notice.`}
+                  </p>
+                  <p className="text-ink/70 leading-relaxed">{h.brand.description}</p>
+                </div>
+                <aside className="md:col-span-5 bg-cream border border-ink/10 p-6">
+                  <div className="eyebrow mb-4">Property facts</div>
+                  <dl className="grid grid-cols-2 gap-y-4 text-sm">
+                    <Fact label="Brand">{h.brand.name}</Fact>
+                    <Fact label="Tier">{h.brand.tier?.toLowerCase()}</Fact>
+                    <Fact label="Stars">{h.starRating}-star</Fact>
+                    <Fact label="Total rooms">{h.totalRooms}</Fact>
+                    {h.openedYear && <Fact label="Opened">{h.openedYear}</Fact>}
+                    <Fact label="Spa">{h.hasSpa ? "Yes" : "—"}</Fact>
+                    <Fact label="Pool">{h.hasPool ? "Yes" : "—"}</Fact>
+                    <Fact label="Restaurants">{h.hasRestaurants ? "Yes" : "—"}</Fact>
+                  </dl>
+                </aside>
+              </section>
+              {galleryUrls.length > 0 && (
+                      <section className="container-x mb-16">
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                          {galleryUrls.map((url, i) => (
+                                  <div key={i} className="relative aspect-square overflow-hidden">
+                                    <img src={url} alt="" className="w-full h-full object-cover" />
+                                  </div>
+                          ))}
+                        </div>
+                      </section>
+              )}
+            </>
+    ),
+    rooms: (
+            <section className="bg-sand">
+              <div className="container-x py-16">
                 <div className="eyebrow mb-3">Rooms &amp; Suites</div>
                 <h2 className="font-serif text-4xl md:text-5xl mb-12">Choose your stay.</h2>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -115,19 +127,24 @@ export default async function HotelDetailPage({ params }: { params: { id: string
                                         <li>{rt.bedConfiguration.map((b) => `${b.count} ${b.type.toLowerCase()}`).join(", ")} bed</li>
                                 )}
                               </ul>
-                              <Link href="#" className="btn-ghost w-full text-xs">Check rates</Link>
+                              <Link
+                                      href={`/hotels/${h.id}/rates?roomId=${rt.id}`}
+                                      className="btn-ghost w-full text-xs"
+                              >
+                                Check rates
+                              </Link>
                             </div>
                           </article>
                   ))}
                 </div>
               </div>
             </section>
-
-            {/* Experiences (federated → experiences subgraph) */}
-            {h.experiences && h.experiences.length > 0 && (
-                    <section id="experiences" className="container-x py-20">
-                      <div className="eyebrow mb-3">Spa &amp; Wellness</div>
-                      <h2 className="font-serif text-4xl md:text-5xl mb-12">Stay, restored.</h2>
+    ),
+    experiences: (
+            <section className="container-x py-16">
+              <div className="eyebrow mb-3">Spa &amp; Wellness</div>
+              <h2 className="font-serif text-4xl md:text-5xl mb-12">Stay, restored.</h2>
+              {h.experiences && h.experiences.length > 0 ? (
                       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {h.experiences.slice(0, 6).map((e) => (
                                 <div key={e.id} className="border border-ink/10 p-6 hover:border-ink/30 transition-colors">
@@ -143,15 +160,20 @@ export default async function HotelDetailPage({ params }: { params: { id: string
                                 </div>
                         ))}
                       </div>
-                    </section>
-            )}
-
-            {/* Event spaces (federated → meetings subgraph) */}
-            {h.eventSpaces && h.eventSpaces.length > 0 && (
-                    <section id="meetings" className="bg-ink text-cream">
-                      <div className="container-x py-20">
-                        <div className="eyebrow text-cream/70 mb-3">Meetings &amp; Events</div>
-                        <h2 className="font-serif text-4xl md:text-5xl mb-12">Spaces that hold a moment.</h2>
+              ) : (
+                      <p className="text-ink/60">
+                        No experiences are currently listed for this property. Reach out to the
+                        concierge for in-room spa, dining, and bespoke arrangements.
+                      </p>
+              )}
+            </section>
+    ),
+    meetings: (
+            <section className="bg-ink text-cream">
+              <div className="container-x py-16">
+                <div className="eyebrow text-cream/70 mb-3">Meetings &amp; Events</div>
+                <h2 className="font-serif text-4xl md:text-5xl mb-12">Spaces that hold a moment.</h2>
+                {h.eventSpaces && h.eventSpaces.length > 0 ? (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {h.eventSpaces.slice(0, 6).map((s) => (
                                   <div key={s.id} className="border border-cream/15 p-6">
@@ -166,12 +188,17 @@ export default async function HotelDetailPage({ params }: { params: { id: string
                                   </div>
                           ))}
                         </div>
-                      </div>
-                    </section>
-            )}
-
-            {/* Location */}
-            <section id="location" className="container-x py-20">
+                ) : (
+                        <p className="text-cream/70">
+                          No event spaces are listed for this property. The events team can
+                          tailor private dining and group bookings on request.
+                        </p>
+                )}
+              </div>
+            </section>
+    ),
+    location: (
+            <section className="container-x py-16">
               <div className="eyebrow mb-3">Location</div>
               <h2 className="font-serif text-4xl md:text-5xl mb-8">{city}, on its own terms.</h2>
               <div className="grid md:grid-cols-3 gap-8 text-sm">
@@ -201,8 +228,8 @@ export default async function HotelDetailPage({ params }: { params: { id: string
                 )}
               </div>
             </section>
-          </>
-  );
+    ),
+  };
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {

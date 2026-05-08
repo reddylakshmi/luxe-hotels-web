@@ -180,6 +180,111 @@ export const HOTEL_DETAIL_QUERY = /* GraphQL */ `
   }
 `;
 
+// ── Trips / reservations ─────────────────────────────────────────────────
+
+export const MY_RESERVATIONS_QUERY = /* GraphQL */ `
+  query MyReservations($first: Int, $filter: ReservationFilter) {
+    myReservations(first: $first, filter: $filter) {
+      totalCount
+      edges {
+        node {
+          id
+          confirmationNumber
+          status
+          checkIn
+          checkOut
+          nights
+          adults
+          children
+          hotel { id name location { address { city countryCode } } }
+          roomType { id name }
+          rateBreakdown {
+            currency
+            totalDue { amount currency }
+          }
+          isRefundable
+          canCheckInOnline
+        }
+      }
+    }
+  }
+`;
+
+export const RESERVATION_BY_CONFIRMATION_QUERY = /* GraphQL */ `
+  query ReservationByConfirmation($confirmationNumber: String!, $guestLastName: String) {
+    reservationByConfirmationNumber(
+      confirmationNumber: $confirmationNumber
+      guestLastName: $guestLastName
+    ) {
+      id
+      confirmationNumber
+      status
+      checkIn
+      checkOut
+      nights
+      adults
+      children
+      hotel { id name location { address { city countryCode } } }
+      roomType { id name }
+      rateBreakdown { currency totalDue { amount currency } }
+      isRefundable
+      canCheckInOnline
+    }
+  }
+`;
+
+// ── Auth mutations ───────────────────────────────────────────────────────
+
+export const SIGN_IN_MUTATION = /* GraphQL */ `
+  mutation SignIn($email: EmailAddress!, $password: String!) {
+    signIn(input: { email: $email, password: $password }) {
+      __typename
+      ... on AuthPayload {
+        accessToken
+        expiresIn
+        tokenType
+        isNewAccount
+        guest {
+          id
+          email
+          name { firstName lastName }
+        }
+      }
+      ... on AuthenticationError { code message }
+      ... on ValidationError { code message fieldErrors { field message } }
+    }
+  }
+`;
+
+export const SIGN_UP_MUTATION = /* GraphQL */ `
+  mutation SignUp(
+    $email: EmailAddress!
+    $password: String!
+    $firstName: String!
+    $lastName: String!
+    $phone: PhoneNumber
+  ) {
+    signUp(input: {
+      email: $email, password: $password,
+      firstName: $firstName, lastName: $lastName, phone: $phone,
+    }) {
+      __typename
+      ... on AuthPayload {
+        accessToken
+        expiresIn
+        tokenType
+        isNewAccount
+        guest {
+          id
+          email
+          name { firstName lastName }
+        }
+      }
+      ... on ValidationError { code message fieldErrors { field message } }
+    }
+  }
+`;
+
 export const RECENTLY_VIEWED_QUERY = /* GraphQL */ `
   query RecentlyViewed($ids: [ID!]!) {
     hotels(first: 24, filter: { ids: $ids }) {

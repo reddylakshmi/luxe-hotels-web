@@ -239,6 +239,28 @@ export type HotelRates = {
   } | null;
 };
 
+// ── Trips / reservations ─────────────────────────────────────────────────────
+
+export type ReservationStatus =
+  | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT"
+  | "NO_SHOW" | "PENDING";
+
+export type Reservation = {
+  id: string;
+  confirmationNumber: string;
+  status: ReservationStatus;
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  adults: number;
+  children: number;
+  hotel: { id: string; name: string; location: { address: Address } };
+  roomType: { id: string; name: string };
+  rateBreakdown: { currency: string; totalDue: Money };
+  isRefundable: boolean;
+  canCheckInOnline: boolean;
+};
+
 export type HomeData = {
   featuredHotels: HotelCard[];
   featuredArticles: Article[];

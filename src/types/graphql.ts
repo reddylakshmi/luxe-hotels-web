@@ -316,6 +316,69 @@ export type Reservation = {
   canCheckInOnline: boolean;
 };
 
+// ── Loyalty (authed, used by /account/loyalty) ──────────────────────────────
+
+export type LoyaltyTier =
+  | "MEMBER" | "SILVER" | "GOLD" | "PLATINUM" | "TITANIUM" | "AMBASSADOR";
+
+export type LoyaltyAccount = {
+  id: string;
+  loyaltyNumber: string;
+  tier: LoyaltyTier;
+  status: string;
+  memberSince: string;
+  lifetimePoints: number;
+  lifetimeNights: number;
+  referralCode: string;
+  pointsBalance: {
+    available: number;
+    pending: number;
+    expiringSoon: number;
+    total: number;
+    cashEquivalent: Money;
+  };
+  tierProgress: {
+    currentTier: LoyaltyTier;
+    nextTier?: LoyaltyTier | null;
+    qualifyingNights: number;
+    nightsToNextTier?: number | null;
+    nightsToRetain?: number | null;
+    qualifyingSpend: Money;
+    tierProgressPct: number;
+    qualificationYearEndDate: string;
+    projectedTier?: LoyaltyTier | null;
+  };
+  benefits: {
+    code: string;
+    name: string;
+    description: string;
+    category: string;
+    tier: LoyaltyTier;
+  }[];
+  certificates: {
+    id: string;
+    type: string;
+    name: string;
+    description: string;
+    status: string;
+    issuedAt: string;
+    expiresAt: string;
+  }[];
+  transactions: {
+    totalCount: number;
+    edges: {
+      node: {
+        id: string;
+        type: string;
+        points: number;
+        balanceAfter: number;
+        description: string;
+        transactionDate: string;
+      };
+    }[];
+  };
+};
+
 // ── Reservation detail (richer shape used by /trips/[id]) ───────────────────
 
 export type DigitalKey = {

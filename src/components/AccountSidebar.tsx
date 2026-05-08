@@ -1,13 +1,18 @@
 // Sticky sub-nav for the /account page. Pure server component — browser
 // handles smooth scroll to #anchors natively (CSS scroll-margin on each
-// section keeps the sticky header from clipping the heading).
+// section keeps the sticky header from clipping the heading). The last
+// entry navigates to a sibling page (Loyalty hub) rather than scrolling
+// in-page; tagged with `href` so the renderer treats it differently.
 
-const ITEMS = [
+type Item = { id: string; label: string; href?: string };
+
+const ITEMS: Item[] = [
   { id: "profile", label: "Profile" },
   { id: "addresses", label: "Addresses" },
   { id: "payment", label: "Payment methods" },
   { id: "trips", label: "Recent trips" },
-] as const;
+  { id: "loyalty", label: "Loyalty hub", href: "/account/loyalty" },
+];
 
 export function AccountSidebar() {
   return (
@@ -19,10 +24,11 @@ export function AccountSidebar() {
         {ITEMS.map((item) => (
           <li key={item.id} className="shrink-0 md:shrink">
             <a
-              href={`#${item.id}`}
+              href={item.href ?? `#${item.id}`}
               className="block whitespace-nowrap md:whitespace-normal text-sm text-ink/70 hover:text-goldDeep md:-ml-px md:border-l-2 md:border-transparent md:hover:border-goldDeep px-3 py-2 transition-colors"
             >
               {item.label}
+              {item.href && <span aria-hidden className="text-ink/30 ml-1">→</span>}
             </a>
           </li>
         ))}

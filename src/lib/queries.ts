@@ -219,6 +219,47 @@ export const ME_PROFILE_QUERY = /* GraphQL */ `
   }
 `;
 
+// ── Loyalty hub (authed) ─────────────────────────────────────────────────
+
+export const MY_LOYALTY_QUERY = /* GraphQL */ `
+  query MyLoyalty($transactionsLimit: Int, $certificatesStatus: CertificateStatus) {
+    myLoyaltyAccount {
+      id
+      loyaltyNumber
+      tier
+      status
+      memberSince
+      lifetimePoints
+      lifetimeNights
+      referralCode
+      pointsBalance {
+        available pending expiringSoon total
+        cashEquivalent { amount currency }
+      }
+      tierProgress {
+        currentTier nextTier
+        qualifyingNights nightsToNextTier nightsToRetain
+        qualifyingSpend { amount currency }
+        tierProgressPct
+        qualificationYearEndDate
+        projectedTier
+      }
+      benefits { code name description category tier }
+      certificates(first: 10, status: $certificatesStatus) {
+        id type name description status issuedAt expiresAt
+      }
+      transactions(first: $transactionsLimit) {
+        totalCount
+        edges {
+          node {
+            id type points balanceAfter description transactionDate
+          }
+        }
+      }
+    }
+  }
+`;
+
 // ── Account page (authed): combined profile + recent trips ──────────────
 
 export const MY_ACCOUNT_QUERY = /* GraphQL */ `

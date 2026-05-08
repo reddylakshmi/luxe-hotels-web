@@ -297,8 +297,8 @@ export type GuestProfile = {
 // ── Trips / reservations ─────────────────────────────────────────────────────
 
 export type ReservationStatus =
-  | "CONFIRMED" | "CANCELLED" | "CHECKED_IN" | "CHECKED_OUT"
-  | "NO_SHOW" | "PENDING";
+  | "CONFIRMED" | "MODIFIED" | "CANCELLED" | "CANCELLED_WITH_FEE" | "REFUND_PENDING"
+  | "CHECKED_IN" | "CHECKED_OUT" | "NO_SHOW" | "PENDING_PAYMENT" | "PENDING";
 
 export type Reservation = {
   id: string;
@@ -314,6 +314,87 @@ export type Reservation = {
   rateBreakdown: { currency: string; totalDue: Money };
   isRefundable: boolean;
   canCheckInOnline: boolean;
+};
+
+// ── Reservation detail (richer shape used by /trips/[id]) ───────────────────
+
+export type DigitalKey = {
+  reservationId: string;
+  keyCode: string;
+  status: "PENDING" | "ACTIVE" | "EXPIRED" | "REVOKED";
+  activatedAt?: string | null;
+  expiresAt: string;
+  rooms: string[];
+};
+
+export type ReservationLineItem = {
+  id: string;
+  date?: string | null;
+  description: string;
+  amount: Money;
+  category: string;
+  quantity?: number | null;
+};
+
+export type ReservationDetail = Reservation & {
+  source: string;
+  createdAt: string;
+  cancellationDeadline?: string | null;
+  canModify: boolean;
+  hotel: {
+    id: string;
+    name: string;
+    slug?: string | null;
+    location: {
+      address: Address & { line1?: string | null };
+    };
+  };
+  roomType: { id: string; name: string };
+  room?: {
+    number?: string | null;
+    floor?: number | null;
+    building?: string | null;
+    category?: string | null;
+  } | null;
+  rateBreakdown: {
+    currency: string;
+    totalDue: Money;
+    roomSubtotal?: Money | null;
+    taxesAndFees?: { total: Money } | null;
+    lineItems: ReservationLineItem[];
+  };
+  specialRequests: {
+    id: string;
+    category: string;
+    request: string;
+    status: string;
+  }[];
+  paymentSummary?: {
+    method?: string | null;
+    lastFour?: string | null;
+    brand?: string | null;
+    chargedAt?: string | null;
+    amount?: Money | null;
+    status?: string | null;
+  } | null;
+  cancellationPolicy?: {
+    type?: string | null;
+    description?: string | null;
+    deadlineHours?: number | null;
+  } | null;
+  cancellation?: {
+    cancelledAt: string;
+    reason?: string | null;
+    refundAmount?: Money | null;
+    refundStatus?: string | null;
+  } | null;
+  loyaltyContext?: {
+    memberNumber?: string | null;
+    tier?: string | null;
+    pointsEarned?: number | null;
+    qualifyingNights?: number | null;
+  } | null;
+  digitalKey?: DigitalKey | null;
 };
 
 export type HomeData = {

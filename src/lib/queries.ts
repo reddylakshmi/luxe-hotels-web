@@ -376,6 +376,101 @@ export const MY_RESERVATIONS_QUERY = /* GraphQL */ `
   }
 `;
 
+export const RESERVATION_DETAIL_QUERY = /* GraphQL */ `
+  query ReservationDetail($id: ID!) {
+    reservation(id: $id) {
+      id
+      confirmationNumber
+      status
+      source
+      createdAt
+      checkIn
+      checkOut
+      nights
+      adults
+      children
+      isRefundable
+      canModify
+      canCheckInOnline
+      cancellationDeadline
+      hotel {
+        id
+        name
+        slug
+        location { address { line1 city state postalCode countryCode } }
+      }
+      roomType { id name }
+      room { number floor building category }
+      rateBreakdown {
+        currency
+        totalDue { amount currency }
+        roomSubtotal { amount currency }
+        taxesAndFees { total { amount currency } }
+        lineItems {
+          id date description amount { amount currency } category quantity
+        }
+      }
+      specialRequests { id category request status }
+      paymentSummary {
+        method lastFour brand chargedAt amount { amount currency } status
+      }
+      cancellationPolicy { type description deadlineHours }
+      cancellation {
+        cancelledAt reason refundAmount { amount currency } refundStatus
+      }
+      loyaltyContext {
+        memberNumber tier pointsEarned qualifyingNights
+      }
+      digitalKey {
+        reservationId keyCode status activatedAt expiresAt rooms
+      }
+    }
+  }
+`;
+
+export const MOBILE_CHECK_IN_MUTATION = /* GraphQL */ `
+  mutation MobileCheckIn(
+    $reservationId: ID!,
+    $input: MobileCheckInInput!,
+    $idempotencyKey: UUID!
+  ) {
+    mobileCheckIn(
+      reservationId: $reservationId,
+      input: $input,
+      idempotencyKey: $idempotencyKey,
+    ) {
+      __typename
+      ... on MobileCheckInSuccess {
+        message
+        reservation { id status }
+        digitalKey { reservationId keyCode status activatedAt expiresAt rooms }
+      }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on NotFoundError { code message }
+    }
+  }
+`;
+
+export const CANCEL_RESERVATION_MUTATION = /* GraphQL */ `
+  mutation CancelReservation(
+    $reservationId: ID!,
+    $input: CancelReservationInput,
+    $idempotencyKey: UUID!
+  ) {
+    cancelReservation(
+      reservationId: $reservationId,
+      input: $input,
+      idempotencyKey: $idempotencyKey,
+    ) {
+      __typename
+      ... on Reservation { id status }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on NotFoundError { code message }
+      ... on AuthorizationError { code message }
+    }
+  }
+`;
+
 export const RESERVATION_BY_CONFIRMATION_QUERY = /* GraphQL */ `
   query ReservationByConfirmation($confirmationNumber: String!, $guestLastName: String) {
     reservationByConfirmationNumber(

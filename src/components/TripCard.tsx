@@ -1,6 +1,10 @@
 // One reservation card — used in the My Trips list AND in the Find a
-// Reservation result panel so both views render the same way.
+// Reservation result panel so both views render the same way. The
+// `linkable` prop opts in to wrapping the card in a Link to the trip
+// detail page; the public confirmation-lookup view leaves it false
+// since unauthenticated visitors can't open /trips/[id].
 
+import Link from "next/link";
 import { fmtDate } from "@/lib/stay";
 import { formatMoney } from "@/lib/money";
 import type { Reservation } from "@/types/graphql";
@@ -23,10 +27,29 @@ const STATUS_TONE: Record<string, string> = {
   PENDING:      "bg-ink/5 text-ink/70 border-ink/10",
 };
 
-export function TripCard({ reservation }: { reservation: Reservation }) {
+export function TripCard({
+  reservation,
+  linkable = false,
+}: {
+  reservation: Reservation;
+  linkable?: boolean;
+}) {
   const r = reservation;
   const tone = STATUS_TONE[r.status] ?? STATUS_TONE.PENDING;
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
+    linkable ? (
+      <Link
+        href={`/trips/${r.id}`}
+        aria-label={`View trip · ${r.hotel.name} · ${r.confirmationNumber}`}
+        className="block hover:border-goldDeep/40 transition-colors"
+      >
+        {children}
+      </Link>
+    ) : (
+      <>{children}</>
+    );
   return (
+    <Wrapper>
     <article className="border border-ink/10 bg-white p-6 md:p-8 grid md:grid-cols-[1.2fr_1fr] gap-6">
       <div>
         <div className="flex items-center gap-3 mb-2">
@@ -74,5 +97,6 @@ export function TripCard({ reservation }: { reservation: Reservation }) {
         )}
       </div>
     </article>
+    </Wrapper>
   );
 }

@@ -81,7 +81,7 @@ export default async function TripsPage() {
         )}
         <div className="flex flex-col gap-5">
           {reservations.map((r) => (
-            <TripCard key={r.id} reservation={r} />
+            <TripCard key={r.id} reservation={r} linkable />
           ))}
         </div>
       </section>

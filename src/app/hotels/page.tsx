@@ -5,6 +5,7 @@ import { gqlFetch } from "@/lib/graphql";
 import { HOTELS_LIST_QUERY } from "@/lib/queries";
 import type { Connection, HotelCard as HotelCardType } from "@/types/graphql";
 import { HotelCard } from "@/components/HotelCard";
+import { DestinationAutocomplete } from "@/components/DestinationAutocomplete";
 
 type Resp = { hotels: Connection<HotelCardType> };
 
@@ -166,12 +167,11 @@ export default async function HotelsPage({
                   </select>
 
                   <label className="text-xs uppercase tracking-[0.18em] text-ink/70 ml-2">City / Hotel</label>
-                  <input
-                          type="text"
+                  <DestinationAutocomplete
+                          variant="inline"
                           name="city"
                           defaultValue={cityQuery}
                           placeholder="e.g. Paris, Maison Lumière…"
-                          className="bg-cream border border-ink/20 px-3 py-2 text-sm w-56 hover:border-ink focus:border-ink outline-none"
                   />
 
                   <button type="submit" className="btn-primary text-xs px-5 py-2">Apply</button>

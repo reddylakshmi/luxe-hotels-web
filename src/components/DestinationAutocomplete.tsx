@@ -35,6 +35,17 @@ export function DestinationAutocomplete({
   placeholder = "Where would you like to go?",
   theme = "cream",
   inputClassName,
+  /**
+   * "framed" (default) — eyebrow label + padded box. Used in the SearchBar
+   *   on the home / search-results / brand pages where the autocomplete is
+   *   one of several search fields in a styled container.
+   * "inline" — bare input + popover, no wrapper styling. Used inside an
+   *   existing filter bar (e.g. /hotels) where the surrounding form already
+   *   handles padding and labels.
+   */
+  variant = "framed",
+  /** Width of the popover dropdown. Defaults to 26rem (the framed-form size). */
+  popoverWidthClass = "w-[26rem]",
   /** Optional click-handler — falls back to fill-then-let-form-submit. */
   onSelect,
 }: {
@@ -43,6 +54,8 @@ export function DestinationAutocomplete({
   placeholder?: string;
   theme?: "cream" | "ink";
   inputClassName?: string;
+  variant?: "framed" | "inline";
+  popoverWidthClass?: string;
   onSelect?: (s: DestinationSuggestion) => void;
 }) {
   const router = useRouter();
@@ -128,70 +141,94 @@ export function DestinationAutocomplete({
   const fieldBg = theme === "ink" ? "bg-ink/40 text-cream" : "bg-cream text-ink";
   const labelClr = theme === "ink" ? "text-cream/70" : "text-ink/60";
 
+  // Default styling for the bare input differs by variant. Framed gives the
+  // borderless transparent look that fits inside the styled SearchBar box;
+  // inline gives a normal bordered input that fits a filter-bar form.
+  const defaultInputCls =
+    variant === "framed"
+      ? "w-full bg-transparent text-sm py-1 focus:outline-none"
+      : "bg-cream border border-ink/20 px-3 py-2 text-sm w-56 hover:border-ink focus:border-ink outline-none";
+
+  const inputEl = (
+    <input
+      ref={inputRef}
+      type="text"
+      name={name}
+      value={value}
+      autoComplete="off"
+      placeholder={placeholder}
+      onChange={(e) => {
+        setValue(e.target.value);
+        setOpen(true);
+      }}
+      onFocus={() => setOpen(true)}
+      onBlur={() => {
+        // Delay close so a click on a list item still registers.
+        window.setTimeout(() => setOpen(false), 150);
+      }}
+      onKeyDown={onKeyDown}
+      className={inputClassName ?? defaultInputCls}
+      role="combobox"
+      aria-expanded={open}
+      aria-controls={listboxId}
+      aria-autocomplete="list"
+      aria-activedescendant={highlighted >= 0 ? `${listboxId}-${highlighted}` : undefined}
+    />
+  );
+
+  const popoverEl = (
+    <Popover
+      anchorRef={inputRef}
+      open={open && (groups.length > 0 || loading)}
+      onClose={() => setOpen(false)}
+    >
+      <ul
+        id={listboxId}
+        role="listbox"
+        className={`bg-cream border border-ink/10 shadow-xl ${popoverWidthClass} max-h-[28rem] overflow-y-auto`}
+      >
+        {loading && groups.length === 0 && (
+          <li className="px-4 py-3 text-sm text-ink/55">Searching…</li>
+        )}
+        {!loading && groups.length === 0 && value.trim().length >= MIN_QUERY_LENGTH && (
+          <li className="px-4 py-3 text-sm text-ink/55">
+            No destinations match &ldquo;{value}&rdquo;.
+          </li>
+        )}
+        {groups.map((group) => {
+          const offset = flatItems.indexOf(group.items[0]);
+          return (
+            <SuggestionGroupSection
+              key={group.type}
+              group={group}
+              offset={offset}
+              highlighted={highlighted}
+              listboxId={listboxId}
+              onPick={pick}
+              onHover={setHighlighted}
+            />
+          );
+        })}
+      </ul>
+    </Popover>
+  );
+
+  if (variant === "inline") {
+    return (
+      <span className="relative inline-block">
+        {inputEl}
+        {popoverEl}
+      </span>
+    );
+  }
+
   return (
     <div className={`block ${fieldBg} px-5 py-3`}>
       <div className={`text-[10px] uppercase tracking-[0.2em] ${labelClr} mb-1`}>
         Destination
       </div>
-      <input
-        ref={inputRef}
-        type="text"
-        name={name}
-        value={value}
-        autoComplete="off"
-        placeholder={placeholder}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => {
-          // Delay close so a click on a list item still registers.
-          window.setTimeout(() => setOpen(false), 150);
-        }}
-        onKeyDown={onKeyDown}
-        className={`w-full bg-transparent text-sm py-1 focus:outline-none ${inputClassName ?? ""}`}
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={listboxId}
-        aria-autocomplete="list"
-        aria-activedescendant={highlighted >= 0 ? `${listboxId}-${highlighted}` : undefined}
-      />
-
-      <Popover
-        anchorRef={inputRef}
-        open={open && (groups.length > 0 || loading)}
-        onClose={() => setOpen(false)}
-      >
-        <ul
-          id={listboxId}
-          role="listbox"
-          className="bg-cream border border-ink/10 shadow-xl w-[26rem] max-h-[28rem] overflow-y-auto"
-        >
-          {loading && groups.length === 0 && (
-            <li className="px-4 py-3 text-sm text-ink/55">Searching…</li>
-          )}
-          {!loading && groups.length === 0 && value.trim().length >= MIN_QUERY_LENGTH && (
-            <li className="px-4 py-3 text-sm text-ink/55">
-              No destinations match &ldquo;{value}&rdquo;.
-            </li>
-          )}
-          {groups.map((group) => {
-            const offset = flatItems.indexOf(group.items[0]);
-            return (
-              <SuggestionGroupSection
-                key={group.type}
-                group={group}
-                offset={offset}
-                highlighted={highlighted}
-                listboxId={listboxId}
-                onPick={pick}
-                onHover={setHighlighted}
-              />
-            );
-          })}
-        </ul>
-      </Popover>
+      {inputEl}
+      {popoverEl}
     </div>
   );
 }

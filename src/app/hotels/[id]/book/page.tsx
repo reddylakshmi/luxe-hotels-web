@@ -1,16 +1,31 @@
 export const dynamic = "force-dynamic";
 
-// Placeholder "Complete Your Booking" page — landing target after the user
-// picks a room+rate on /hotels/[id]/rates. The full guest details + payment
-// form is a future iteration; for now we summarise the selection so the flow
-// is testable end-to-end.
+// Complete Your Booking page. Server component that:
+//   1. Resolves the rate/room the user selected on /hotels/[id]/rates by
+//      re-fetching the same RATES_QUERY and finding the matching room +
+//      rate plan.
+//   2. Composes the page from focused subcomponents — the booking form
+//      itself, the right-column summary sidebar, the special-offer banner,
+//      and the hold timer.
+//   3. Computes all charge derivations via the pure
+//      computeChargeSummary() helper so the sidebar and the special-offer
+//      banner share one source of truth.
 
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
-import { HOTEL_DETAIL_QUERY } from "@/lib/queries";
-import type { HotelDetail } from "@/types/graphql";
+import { RATES_QUERY } from "@/lib/queries";
+import type { HotelRates, Rate, RoomAvailability } from "@/types/graphql";
+import { resolveStay, fmtDate } from "@/lib/stay";
+import { fromSearchParams as guestsFrom } from "@/lib/guests";
+import { computeChargeSummary } from "@/lib/bookingValidation";
+import { BrandLogo } from "@/components/BrandLogo";
+import { HoldTimer } from "@/components/HoldTimer";
+import { StatementCreditBanner } from "@/components/StatementCreditBanner";
+import { MemberRateBanner } from "@/components/MemberRateBanner";
+import { BookingForm } from "@/components/BookingForm";
+import { BookingSummarySidebar } from "@/components/BookingSummarySidebar";
 
-type Resp = { hotel: HotelDetail };
+type Resp = { hotel: HotelRates };
 
 export default async function BookPage({
   params,
@@ -20,109 +35,153 @@ export default async function BookPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const pick = (k: string) =>
-    Array.isArray(searchParams[k]) ? (searchParams[k] as string[])[0] : (searchParams[k] as string | undefined);
+    Array.isArray(searchParams[k])
+      ? (searchParams[k] as string[])[0]
+      : (searchParams[k] as string | undefined);
 
-  const rateToken = pick("rateToken");
-  const ratePlanCode = pick("ratePlanCode");
-  const roomId = pick("roomId");
-  const checkIn = pick("checkIn");
-  const checkOut = pick("checkOut");
-  const adults = pick("adults") ?? "1";
-  const children = pick("children") ?? "0";
+  const stay = resolveStay({ checkIn: pick("checkIn"), checkOut: pick("checkOut") });
+  const guests = guestsFrom(searchParams);
+  const currency = pick("currency") || "USD";
+  const ratePlanCode = pick("ratePlanCode") ?? "";
+  const rateToken = pick("rateToken") ?? "";
+  const roomId = pick("roomId") ?? "";
 
   let data: Resp | null = null;
   try {
-    data = await gqlFetch<Resp>(HOTEL_DETAIL_QUERY, { id: params.id });
+    data = await gqlFetch<Resp>(RATES_QUERY, {
+      id: params.id,
+      checkIn: stay.checkIn,
+      checkOut: stay.checkOut,
+      adults: guests.adults,
+      children: guests.children,
+      currency,
+    });
   } catch {
-    // best-effort: still render the page so the user sees their selection
+    // best-effort — fall through and show a not-found state below
   }
 
   const hotel = data?.hotel;
-  const room = hotel?.roomTypes.find((r) => r.id === roomId);
+  if (!hotel || !hotel.availability) {
+    return <NotFound hotelId={params.id} />;
+  }
 
-  const backToRates =
+  const room: RoomAvailability | undefined = hotel.availability.roomAvailabilities.find(
+    (r) => r.roomType.id === roomId,
+  );
+  const selectedRate: Rate | undefined = room?.rates.find((r) => r.ratePlan.code === ratePlanCode);
+
+  if (!room || !selectedRate) {
+    return <NotFound hotelId={params.id} />;
+  }
+
+  const subtotal = parseFloat(selectedRate.taxesAndFees.subtotal.amount);
+  const taxes = parseFloat(selectedRate.taxesAndFees.taxes.amount);
+  const fees = parseFloat(selectedRate.taxesAndFees.fees.amount);
+  const charges = computeChargeSummary({ subtotal, taxes, fees, currency });
+
+  const editStayHref =
     `/hotels/${params.id}/rates?` +
     new URLSearchParams({
-      checkIn: checkIn ?? "",
-      checkOut: checkOut ?? "",
-      adults,
-      children,
+      checkIn: stay.checkIn,
+      checkOut: stay.checkOut,
+      adults: String(guests.adults),
+      children: String(guests.children),
+      rooms: String(guests.rooms),
+      currency,
     }).toString();
+
+  const isMemberRate = selectedRate.ratePlan.type === "MEMBER_RATE";
+  const addressBits = [
+    hotel.location.address.line1,
+    hotel.location.address.line2,
+    hotel.location.address.city,
+    hotel.location.address.state,
+    hotel.location.address.postalCode,
+  ].filter(Boolean);
 
   return (
     <>
+      {/* ── Header (matches the rates page) ───────────────────────── */}
       <section className="bg-ink text-cream">
-        <div className="container-x py-10 md:py-14">
-          <div className="eyebrow text-cream/70 mb-2">Booking</div>
-          <h1 className="font-serif text-3xl md:text-4xl">Complete Your Booking</h1>
-          {hotel && (
-            <p className="text-cream/70 mt-2">
-              {hotel.name} · {hotel.location.address.city}
-            </p>
-          )}
+        <div className="container-x py-10 md:py-14 flex items-center gap-5">
+          <BrandLogo brand={hotel.brand} size="md" />
+          <div>
+            <div className="eyebrow text-cream/70 mb-1">{hotel.brand.name}</div>
+            <h1 className="font-serif text-3xl md:text-4xl leading-tight">{hotel.name}</h1>
+            <p className="text-cream/70 text-sm mt-1">{addressBits.join(", ")}</p>
+          </div>
         </div>
       </section>
 
-      <section className="container-x py-12 grid md:grid-cols-[1.5fr_1fr] gap-10">
-        <div>
-          <h2 className="font-serif text-2xl mb-6">Guest Details</h2>
-          <p className="text-ink/60 mb-8">
-            The full booking form (guest information, payment, special requests) is the next step in this
-            flow. For now this page confirms what you selected on the rates page.
-          </p>
-          <div className="border border-ink/10 bg-cream/40 p-6 text-sm">
-            <p className="text-ink/70 mb-1">Selected rate token:</p>
-            <code className="block font-mono text-xs break-all">{rateToken || "(none)"}</code>
-          </div>
-          <Link href={backToRates} className="inline-block mt-8 text-goldDeep underline hover:no-underline">
-            ← Back to rates
-          </Link>
+      {/* ── Status row: Stay dates · Total stay · Hold timer ──────── */}
+      <section className="bg-cream border-b border-ink/10">
+        <div className="container-x py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+          <Stat label="Stay Dates" value={`${fmtDate(stay.checkIn)} → ${fmtDate(stay.checkOut)}`} />
+          <Stat
+            label="Total Stay"
+            value={`${charges.total.toLocaleString(undefined, {
+              minimumFractionDigits: 2, maximumFractionDigits: 2,
+            })} ${charges.currency}`}
+          />
+          <HoldTimer backToRatesHref={editStayHref} />
         </div>
+      </section>
 
-        <aside className="border border-ink/10 bg-cream p-6 h-fit">
-          <h3 className="font-serif text-xl mb-4">Your Stay</h3>
-          {hotel && (
-            <div className="text-sm space-y-2">
-              <div className="pb-3 border-b border-ink/10">
-                <div className="text-[11px] uppercase tracking-[0.15em] text-ink/55 mb-1">Hotel</div>
-                <div className="font-medium">{hotel.name}</div>
-                {hotel.location.address.line1 && (
-                  <div className="text-ink/60 text-xs">{hotel.location.address.line1}</div>
-                )}
-                <div className="text-ink/60 text-xs">
-                  {hotel.location.address.city}
-                  {hotel.location.address.countryCode ? `, ${hotel.location.address.countryCode}` : ""}
-                </div>
-              </div>
-              {room && (
-                <div className="pb-3 border-b border-ink/10">
-                  <div className="text-[11px] uppercase tracking-[0.15em] text-ink/55 mb-1">Room</div>
-                  <div className="font-medium">{room.name}</div>
-                  <div className="text-ink/60 text-xs">
-                    {room.bedConfiguration
-                      .map((b) => `${b.count} ${b.type.toLowerCase().replace("_", " ")}`)
-                      .join(", ")}
-                  </div>
-                </div>
-              )}
-              <div className="pb-3 border-b border-ink/10">
-                <div className="text-[11px] uppercase tracking-[0.15em] text-ink/55 mb-1">Stay</div>
-                <div>
-                  {checkIn} → {checkOut}
-                </div>
-                <div className="text-ink/60 text-xs">
-                  {adults} adult{adults === "1" ? "" : "s"}
-                  {parseInt(children, 10) > 0 && `, ${children} children`}
-                </div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.15em] text-ink/55 mb-1">Rate plan</div>
-                <div>{ratePlanCode}</div>
-              </div>
-            </div>
-          )}
-        </aside>
+      <StatementCreditBanner charges={charges} />
+
+      {isMemberRate && <MemberRateBanner />}
+
+      {/* ── Two-column form + summary ────────────────────────────── */}
+      <section className="container-x py-10">
+        <h2 className="font-serif text-3xl mb-8">Complete Your Booking</h2>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-8">
+          <div>
+            <BookingForm
+              bookingHref={editStayHref}
+              hotelId={params.id}
+              rateToken={rateToken}
+              ratePlanCode={ratePlanCode}
+              roomId={roomId}
+            />
+          </div>
+          <BookingSummarySidebar
+            hotelName={hotel.name}
+            rateRoom={room.roomType}
+            selectedRate={selectedRate}
+            charges={charges}
+            checkIn={stay.checkIn}
+            checkOut={stay.checkOut}
+            nights={hotel.availability.nights}
+            rooms={guests.rooms}
+            adults={guests.adults}
+            children={guests.children}
+            editStayHref={editStayHref}
+          />
+        </div>
       </section>
     </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-ink/55 mb-1">{label}</div>
+      <div className="text-base font-medium">{value}</div>
+    </div>
+  );
+}
+
+function NotFound({ hotelId }: { hotelId: string }) {
+  return (
+    <div className="container-x py-24 text-center">
+      <h1 className="font-serif text-3xl mb-4">Booking unavailable</h1>
+      <p className="text-ink/60 mb-8">
+        We couldn&rsquo;t find the rate you selected — it may have expired. Please pick again.
+      </p>
+      <Link href={`/hotels/${hotelId}/rates`} className="btn-primary inline-block">
+        Back to rates
+      </Link>
+    </div>
   );
 }

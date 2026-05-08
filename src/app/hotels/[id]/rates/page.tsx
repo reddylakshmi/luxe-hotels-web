@@ -33,6 +33,9 @@ export default async function RatesPage({
   const usePoints = pick("usePoints") === "1";
   const showTaxes = pick("showTaxes") === "1";
   const currency = pick("currency") || "USD";
+  // Set when the user arrives from a "Check rates" button on the hotel
+  // detail page — the matching room card opens and scrolls into view.
+  const focusRoomId = pick("roomId");
 
   let data: Resp | null = null;
   let error: string | null = null;
@@ -143,6 +146,7 @@ export default async function RatesPage({
               hotelName={hotel.name}
               checkIn={stay.checkIn}
               checkOut={stay.checkOut}
+              defaultExpanded={focusRoomId === room.roomType.id}
               adults={guests.adults}
               children={guests.children}
             />

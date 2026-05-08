@@ -5,7 +5,7 @@
 // reveals a row per rate plan — Flexible (Most Popular), Member Exclusive,
 // Package — each with a Select button that takes the guest to /book.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Rate, RoomAvailability } from "@/types/graphql";
 import { FALLBACK_ROOM_IMAGE_URL } from "@/lib/constants";
@@ -24,6 +24,7 @@ export function RoomRateCard({
   checkOut,
   adults,
   children,
+  defaultExpanded = false,
 }: {
   room: RoomAvailability;
   nights: number;
@@ -34,9 +35,28 @@ export function RoomRateCard({
   checkOut: string;
   adults: number;
   children: number;
+  /**
+   * If true the rate-plan list opens on first render and the card
+   * auto-scrolls into view. Used when the user clicks "Check rates" on a
+   * specific room from the hotel detail page so they don't have to find
+   * it again on the rate-list.
+   */
+  defaultExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [showDetails, setShowDetails] = useState(false);
+  const articleRef = useRef<HTMLElement>(null);
+
+  // When the user lands here via ?roomId=X, scroll the matching card into
+  // view once after first paint. The 240ms delay lets layout settle so the
+  // scroll lands accurately.
+  useEffect(() => {
+    if (!defaultExpanded) return;
+    const id = window.setTimeout(() => {
+      articleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 240);
+    return () => window.clearTimeout(id);
+  }, [defaultExpanded]);
 
   const lowest = room.rates.reduce<LowestRate | null>((acc, r) => {
     const v = parseMoneyAmount(r.averageNightlyRate);
@@ -48,7 +68,11 @@ export function RoomRateCard({
     .join(", ");
 
   return (
-    <article className="border border-ink/10 bg-white">
+    <article
+      ref={articleRef}
+      className="border border-ink/10 bg-white scroll-mt-24"
+      data-room-id={room.roomType.id}
+    >
       <div className="grid grid-cols-1 md:grid-cols-[2fr_3fr] gap-0">
         {/* Left: image — 40% of the row width */}
         <div className="aspect-[4/3] md:aspect-auto md:min-h-[340px] bg-ink/5">

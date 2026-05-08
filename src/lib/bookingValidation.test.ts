@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   cardBrand,
+  CARD_MAX_DIGITS,
+  CARD_MIN_DIGITS,
   computeChargeSummary,
+  countCardDigits,
+  formatCardForDisplay,
   formatHoldTime,
   HOLD_DURATION_MINUTES,
   isLuhnValid,
@@ -177,6 +181,90 @@ describe("validateMemberNumber", () => {
   });
 });
 
+// ── Card-number formatter (typing simulation) ──────────────────────────
+
+describe("formatCardForDisplay", () => {
+  it("groups raw digits into 4s separated by single spaces", () => {
+    expect(formatCardForDisplay("4242424242424242")).toBe("4242 4242 4242 4242");
+  });
+
+  it("is idempotent on already-formatted input", () => {
+    const formatted = "4242 4242 4242 4242";
+    expect(formatCardForDisplay(formatted)).toBe(formatted);
+  });
+
+  it("strips dashes, dots, and other separators", () => {
+    expect(formatCardForDisplay("4242-4242-4242-4242")).toBe("4242 4242 4242 4242");
+    expect(formatCardForDisplay("4242.4242.4242.4242")).toBe("4242 4242 4242 4242");
+    expect(formatCardForDisplay("4242   4242   4242   4242")).toBe("4242 4242 4242 4242");
+  });
+
+  it("formats partial inputs (no trailing space artefacts)", () => {
+    expect(formatCardForDisplay("")).toBe("");
+    expect(formatCardForDisplay("4")).toBe("4");
+    expect(formatCardForDisplay("42")).toBe("42");
+    expect(formatCardForDisplay("4242")).toBe("4242");
+    expect(formatCardForDisplay("42425")).toBe("4242 5");
+    expect(formatCardForDisplay("4242 5678")).toBe("4242 5678");
+  });
+
+  it("formats a 15-digit Amex correctly (4-4-4-3 grouping)", () => {
+    expect(formatCardForDisplay("378282246310005")).toBe("3782 8224 6310 005");
+  });
+
+  it("formats a 17-digit Discover (5 groups: 4-4-4-4-1)", () => {
+    expect(formatCardForDisplay("12345678901234567")).toBe("1234 5678 9012 3456 7");
+  });
+
+  it("formats a 19-digit number (5 groups: 4-4-4-4-3) — the max", () => {
+    expect(formatCardForDisplay("1234567890123456789")).toBe("1234 5678 9012 3456 789");
+  });
+
+  it("caps the digit count at CARD_MAX_DIGITS even if more are typed/pasted", () => {
+    const tooMany = "1".repeat(CARD_MAX_DIGITS + 5);
+    expect(countCardDigits(formatCardForDisplay(tooMany))).toBe(CARD_MAX_DIGITS);
+  });
+
+  it("handles null/undefined gracefully (returns empty string)", () => {
+    expect(formatCardForDisplay(undefined)).toBe("");
+    expect(formatCardForDisplay(null)).toBe("");
+  });
+
+  // The bug suspected by the user: type a 16-digit Visa one digit at a time
+  // and verify every intermediate state formats cleanly. Previously the
+  // regex+trim flavour could lose a trailing space and let cursor logic
+  // drop a digit in some browsers; this test pins the new behaviour.
+  it("simulating digit-by-digit Visa entry produces all 16 digits", () => {
+    let value = "";
+    for (const d of "4242424242424242") {
+      value = formatCardForDisplay(value + d);
+    }
+    expect(value).toBe("4242 4242 4242 4242");
+    expect(countCardDigits(value)).toBe(16);
+    expect(isLuhnValid(value)).toBe(true);
+  });
+
+  it("simulating Amex paste then trailing typed digits keeps all 15", () => {
+    let value = formatCardForDisplay("3782822463"); // first 10 pasted
+    expect(countCardDigits(value)).toBe(10);
+    for (const d of "10005") {
+      value = formatCardForDisplay(value + d);
+    }
+    expect(countCardDigits(value)).toBe(15);
+    expect(value).toBe("3782 8224 6310 005");
+    expect(isLuhnValid(value)).toBe(true);
+  });
+});
+
+describe("countCardDigits", () => {
+  it("counts only digit characters", () => {
+    expect(countCardDigits("4242 4242 4242 4242")).toBe(16);
+    expect(countCardDigits("3782-8224-6310-005")).toBe(15);
+    expect(countCardDigits("")).toBe(0);
+    expect(countCardDigits(undefined)).toBe(0);
+  });
+});
+
 // ── Luhn / card number ──────────────────────────────────────────────────
 
 describe("isLuhnValid + validateCardNumber", () => {
@@ -195,8 +283,19 @@ describe("isLuhnValid + validateCardNumber", () => {
     expect(validateCardNumber("4242 4242 4242 4243")).toBe("Enter a valid card number");
   });
 
-  it("rejects a too-short number", () => {
-    expect(validateCardNumber("4242")).toBe("Enter a valid card number");
+  it("rejects a too-short number with a digit count in the message", () => {
+    expect(validateCardNumber("4242")).toMatch(/too short/);
+    expect(validateCardNumber("4242")).toContain("4/13");
+  });
+
+  it("rejects a too-long number with a digit count in the message", () => {
+    expect(validateCardNumber("1".repeat(20))).toMatch(/too long/);
+  });
+
+  it("rejects a length-valid number that fails Luhn (e.g. the placeholder)", () => {
+    // The literal "1234 5678 9012 3456" is 16 digits but doesn't pass Luhn —
+    // exactly the trap the old placeholder text invited.
+    expect(validateCardNumber("1234 5678 9012 3456")).toBe("Enter a valid card number");
   });
 });
 

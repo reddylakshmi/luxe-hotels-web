@@ -77,13 +77,17 @@ export function validateMemberNumber(value: string | undefined): string | undefi
 
 // ── Payment validators ─────────────────────────────────────────────────
 
+/** Card-length bounds shared by the formatter and the Luhn check. */
+export const CARD_MIN_DIGITS = 13; // Visa minimum
+export const CARD_MAX_DIGITS = 19; // Discover / Maestro upper bound
+
 /**
  * Luhn check — the standard credit-card mod-10 checksum. Accepts a string
  * with or without spaces / dashes; returns true iff the digits pass.
  */
 export function isLuhnValid(cardNumber: string): boolean {
-  const digits = cardNumber.replace(/[^\d]/g, "");
-  if (digits.length < 12 || digits.length > 19) return false;
+  const digits = cardNumber.replace(/\D/g, "");
+  if (digits.length < CARD_MIN_DIGITS || digits.length > CARD_MAX_DIGITS) return false;
   let sum = 0;
   let alternate = false;
   for (let i = digits.length - 1; i >= 0; i--) {
@@ -98,9 +102,47 @@ export function isLuhnValid(cardNumber: string): boolean {
   return sum % 10 === 0;
 }
 
+/** Just the digit count, for the inline "16/19" hint and for the Luhn precheck. */
+export function countCardDigits(value: string | undefined | null): number {
+  if (!value) return 0;
+  return value.replace(/\D/g, "").length;
+}
+
+/**
+ * Format a credit-card number for display. Strips non-digits, caps at the
+ * supported length, then groups in 4s separated by single spaces. Lives in
+ * lib so the booking form, future tests, and any future review screen all
+ * share one source of truth.
+ *
+ * Examples:
+ *   formatCardForDisplay("4242424242424242")     // "4242 4242 4242 4242"
+ *   formatCardForDisplay("378282246310005")      // "3782 8224 6310 005"
+ *   formatCardForDisplay("4242 4242 4242 42421") // "4242 4242 4242 4242 1"
+ */
+export function formatCardForDisplay(raw: string | undefined | null): string {
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "").slice(0, CARD_MAX_DIGITS);
+  if (digits.length === 0) return "";
+  // Split into 4-char chunks; join with a single space. Avoids the trailing
+  // space + trim() dance that the previous regex relied on, which made the
+  // typing/cursor behaviour subtly inconsistent for some inputs.
+  const groups: string[] = [];
+  for (let i = 0; i < digits.length; i += 4) {
+    groups.push(digits.slice(i, i + 4));
+  }
+  return groups.join(" ");
+}
+
 export function validateCardNumber(value: string | undefined): string | undefined {
   const required = validateRequired(value, "Card number");
   if (required) return required;
+  const digits = countCardDigits(value);
+  if (digits < CARD_MIN_DIGITS) {
+    return `Card number is too short (${digits}/${CARD_MIN_DIGITS} digits)`;
+  }
+  if (digits > CARD_MAX_DIGITS) {
+    return `Card number is too long (${digits}/${CARD_MAX_DIGITS} digits)`;
+  }
   if (!isLuhnValid(value!)) return "Enter a valid card number";
   return undefined;
 }

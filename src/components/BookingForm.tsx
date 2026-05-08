@@ -19,6 +19,9 @@ import { COUNTRIES_ALPHABETICAL, findCountry } from "@/lib/countries";
 import { hasStateDropdown, statesForCountry } from "@/lib/states";
 import {
   cardBrand,
+  CARD_MAX_DIGITS,
+  countCardDigits,
+  formatCardForDisplay,
   validateGuestInformation,
   validatePaymentInformation,
   type GuestInformation,
@@ -312,17 +315,26 @@ export function BookingForm({
             label="Card Number"
             error={errors["payment.cardNumber"]}
             className="md:col-span-2"
-            adornment={detectedBrand && <BrandTag brand={detectedBrand} />}
+            adornment={
+              <span className="flex items-center gap-2">
+                <span className="text-ink/45 lowercase tracking-normal">
+                  {countCardDigits(state.payment.cardNumber)}/{CARD_MAX_DIGITS} digits
+                </span>
+                {detectedBrand && <BrandTag brand={detectedBrand} />}
+              </span>
+            }
           >
             <input
               id="cardNumber"
               inputMode="numeric"
               autoComplete="cc-number"
-              maxLength={23}
+              // 19 digits + 3 spaces between groups of 4 (worst-case Visa/MC).
+              // The actual cap on digits is enforced inside formatCardForDisplay.
+              maxLength={CARD_MAX_DIGITS + 4}
               value={state.payment.cardNumber}
-              onChange={(e) => setPayment("cardNumber", formatCardNumber(e.target.value))}
+              onChange={(e) => setPayment("cardNumber", formatCardForDisplay(e.target.value))}
               className={inputCls(errors["payment.cardNumber"])}
-              placeholder="1234 5678 9012 3456"
+              placeholder="•••• •••• •••• ••••"
             />
           </Field>
 
@@ -450,12 +462,6 @@ function generateBookingReference(): string {
   const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
   return Array.from({ length: 3 }, () => pick(alpha)).join("") +
          Array.from({ length: 6 }, () => pick(digits)).join("");
-}
-
-function formatCardNumber(raw: string): string {
-  // Group digits in 4s; preserve user typing pattern.
-  const digits = raw.replace(/\D/g, "").slice(0, 19);
-  return digits.replace(/(.{4})/g, "$1 ").trim();
 }
 
 function expiryYears(): number[] {

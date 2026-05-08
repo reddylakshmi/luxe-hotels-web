@@ -180,6 +180,21 @@ export const HOTEL_DETAIL_QUERY = /* GraphQL */ `
   }
 `;
 
+export const DESTINATION_SUGGESTIONS_QUERY = /* GraphQL */ `
+  query DestinationSuggestions($query: String!, $limit: Int) {
+    destinationSuggestions(query: $query, limit: $limit) {
+      type
+      label
+      sublabel
+      hotelId
+      hotelSlug
+      city
+      country
+      countryCode
+    }
+  }
+`;
+
 export const RATES_QUERY = /* GraphQL */ `
   query HotelRates(
     $id: ID!

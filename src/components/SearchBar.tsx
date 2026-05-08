@@ -10,6 +10,7 @@
 import { withDefaults } from "@/lib/search";
 import { GuestPicker } from "./GuestPicker";
 import { DateRangePicker } from "./DateRangePicker";
+import { DestinationAutocomplete } from "./DestinationAutocomplete";
 
 type Defaults = {
   destination?: string;
@@ -59,17 +60,12 @@ export function SearchBar({
           >
             {brandId && <input type="hidden" name="brandId" value={brandId} />}
 
-            <Field label={brandName ? `Destination · ${brandName}` : "Destination"} name="destination"
-                   labelClr={labelClr} fieldBg={fieldBg}>
-              <input
-                      type="text"
-                      name="destination"
-                      defaultValue={d.destination}
-                      placeholder="City, hotel, region…"
-                      className="w-full bg-transparent outline-none text-sm py-1 placeholder:opacity-50"
-                      autoComplete="off"
-              />
-            </Field>
+            <DestinationAutocomplete
+                    name="destination"
+                    defaultValue={d.destination}
+                    placeholder="City, hotel, region…"
+                    theme={theme}
+            />
 
             <DateRangePicker
                     theme={theme}

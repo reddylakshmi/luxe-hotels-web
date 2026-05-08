@@ -156,6 +156,21 @@ export type BrandStory = {
   pillars: { code: string; title: LocalizedText; description: LocalizedText; icon?: string | null }[];
 };
 
+// ── Destination autocomplete ─────────────────────────────────────────────────
+
+export type DestinationSuggestionType = "HOTEL" | "CITY" | "COUNTRY";
+
+export type DestinationSuggestion = {
+  type: DestinationSuggestionType;
+  label: string;
+  sublabel?: string | null;
+  hotelId?: string | null;
+  hotelSlug?: string | null;
+  city?: string | null;
+  country?: string | null;
+  countryCode?: string | null;
+};
+
 // ── Rate-page types ──────────────────────────────────────────────────────────
 
 export type RatePlan = {

@@ -28,11 +28,8 @@ import {
 
 export function HotelTabs({
   panels,
-  primaryAction,
 }: {
   panels: Record<HotelTabId, ReactNode>;
-  /** Optional CTA rendered to the right of the tab strip (e.g. "Book a Room"). */
-  primaryAction?: ReactNode;
 }) {
   const [active, setActive] = useState<HotelTabId>(DEFAULT_TAB_ID);
   const tablistRef = useRef<HTMLDivElement>(null);
@@ -112,9 +109,6 @@ export function HotelTabs({
               );
             })}
           </div>
-          {primaryAction && (
-            <div className="shrink-0">{primaryAction}</div>
-          )}
         </div>
       </div>
 

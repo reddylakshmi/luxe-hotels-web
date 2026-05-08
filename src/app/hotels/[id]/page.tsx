@@ -39,14 +39,7 @@ export default async function HotelDetailPage({ params }: { params: { id: string
               </div>
             </section>
 
-            <HotelTabs
-                    panels={buildHotelPanels(h, city, galleryUrls)}
-                    primaryAction={
-                      <Link href="#rooms" className="btn-primary text-xs px-4 py-2 whitespace-nowrap">
-                        Book a Room
-                      </Link>
-                    }
-            />
+            <HotelTabs panels={buildHotelPanels(h, city, galleryUrls)} />
           </>
   );
 }

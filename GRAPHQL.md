@@ -26,6 +26,7 @@ top-level field.
 | Find a hotel — results + filters + sort | `/search` | [`SEARCH_HOTELS_QUERY`](#search_hotels_query) | property · pricing |
 | Hotels list + city/country filter | `/hotels` | [`HOTELS_LIST_QUERY`](#hotels_list_query) | property |
 | Destination autocomplete (typeahead) | search bar (any page) | [`DESTINATION_SUGGESTIONS_QUERY`](#destination_suggestions_query) | property |
+| Recently Viewed Hotels (home section) | `/` (client-only island) | [`RECENTLY_VIEWED_QUERY`](#recently_viewed_query) | property |
 | Hotel detail | `/hotels/[id]` | [`HOTEL_DETAIL_QUERY`](#hotel_detail_query) | property · experiences · meetings |
 | Select a Room and Rate | `/hotels/[id]/rates` | [`RATES_QUERY`](#rates_query) | property · pricing |
 | Stories list + category filter | `/stories` | [`STORIES_LIST_QUERY`](#stories_list_query) | content |
@@ -251,6 +252,53 @@ stays correct even if the backend sort changes. The corresponding
 `hotels(filter: { query: ... })` server-side filter mirrors the same
 matching domain — name, city, state, country name (substring), and
 country code (exact).
+
+---
+
+## `RECENTLY_VIEWED_QUERY`
+
+**Section:** Recently Viewed Hotels on the home page —
+[`src/components/RecentlyViewedSection.tsx`](./src/components/RecentlyViewedSection.tsx).
+Client-only island that hydrates after first paint; renders nothing on
+first-time visits so there's no layout shift.
+
+**Functionality:** the per-device list of recently viewed hotel ids
+lives in `localStorage` (managed by
+[`src/lib/recentlyViewed.ts`](./src/lib/recentlyViewed.ts) — most-recent
+first, dedup, capped at 12). On mount, the home section reads that list
+and asks the property subgraph for the matching hotel cards via the new
+`HotelFilter.ids` predicate. Order is restored client-side because the
+filter doesn't preserve input ordering.
+
+**Subgraphs touched:** `property`.
+
+**Variables:**
+- `ids: [ID!]!` — the localStorage list (1–12 ids)
+
+```graphql
+query RecentlyViewed($ids: [ID!]!) {
+  hotels(first: 24, filter: { ids: $ids }) {
+    edges {
+      node {
+        id name slug starRating
+        brand { id name tier accentColor }
+        location { address { city countryCode } }
+        guestRating { overall count }
+        media(first: 1, categories: [EXTERIOR]) {
+          edges { node { url altText } }
+        }
+      }
+    }
+  }
+}
+```
+
+**Tracker:** every hotel detail page (`/hotels/[id]`) and rate-list page
+(`/hotels/[id]/rates`) mounts the invisible
+[`RecentlyViewedTracker`](./src/components/RecentlyViewedTracker.tsx),
+which calls `recordView(hotelId)` once on mount. The booking page
+intentionally doesn't track — mid-purchase pages shouldn't pollute the
+browse history.
 
 ---
 

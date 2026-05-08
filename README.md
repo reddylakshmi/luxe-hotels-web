@@ -14,7 +14,7 @@ Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federa
 
 | Route | What it shows | Subgraphs touched |
 |---|---|---|
-| `/` | Hero, featured hotels (incl. India IT-corridor flagships), brand-story pillars, travel inspirations, active offers, featured stories, member CTA | property, content |
+| `/` | Hero, featured hotels (incl. India IT-corridor flagships), **Recently Viewed Hotels** (client-only island, per-device localStorage), brand-story pillars, travel inspirations, active offers, featured stories, member CTA | property, content |
 | `/search` | Search results — federated availability + lowest rate per hotel, per-context filter facets, 6 sort options, currency conversion | property, pricing |
 | `/hotels` | All hotels grouped by country, with city filter | property |
 | `/hotels/[id]` | Full hotel detail: gallery, rooms, spa experiences, event spaces, reviews, location | property, experiences, meetings |
@@ -52,6 +52,11 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
 - **Country / state data.** `lib/countries.ts` (53 entries with phone code,
   currency, zip regex) + `lib/states.ts` (US/CA/AU/IN/MX/BR with formal
   subdivision lists; everything else falls back to free text).
+- **Recently Viewed Hotels.** Per-device list (localStorage, capped at 12,
+  most-recent-first, dedup) tracked invisibly on hotel detail and rate
+  pages, surfaced in a client-only island on the home page after the
+  Featured Hotels carousel. The booking flow intentionally doesn't
+  track — mid-purchase pages shouldn't pollute the browse history.
 
 ## Run it locally
 
@@ -86,7 +91,7 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 ## Testing
 
 ```bash
-npm test           # full vitest suite (261 tests, ~0.5s)
+npm test           # full vitest suite (276 tests, ~0.5s)
 npm run test:watch # watch mode
 ```
 
@@ -99,6 +104,7 @@ npm run test:watch # watch mode
 | `lib/searchParams.test.ts` | 6 | First-of-array semantics, curried `picker()` |
 | `lib/money.test.ts` | 7 | `parseMoneyAmount`, `formatMoney`, `formatAmount` edge cases |
 | `lib/image.test.ts` | 7 | Placeholder-host detection, deterministic seed, real-URL passthrough |
+| `lib/recentlyViewed.test.ts` | 15 | localStorage ordering, dedup, cap at 12, malformed JSON, SSR-null storage |
 | `lib/guests.test.ts` | 29 | Room/adult/child arithmetic, child-age serialisation |
 | `lib/stay.test.ts` | 18 | `resolveStay` defaulting from any partial input |
 | `lib/dateRange.test.ts` | ~15 | Date-range picker math (range building, day picking) |
@@ -150,10 +156,12 @@ src/
 │   ├── MemberRateBanner.tsx             member-exclusive rate notice
 │   ├── BookingForm.tsx                  guest + payment + requests form
 │   ├── BookingSummarySidebar.tsx        right-column summary on book page
-│   └── CvvHelper.tsx                    "where's the CVV" popover
+│   ├── CvvHelper.tsx                    "where's the CVV" popover
+│   ├── RecentlyViewedTracker.tsx        invisible per-page tracker
+│   └── RecentlyViewedSection.tsx        home-page Recently Viewed island
 ├── lib/
 │   ├── graphql.ts                       gqlFetch helper
-│   ├── queries.ts                       all GraphQL operations (10 queries)
+│   ├── queries.ts                       all GraphQL operations (13 queries)
 │   ├── image.ts                         placeholder URL mapper
 │   ├── stay.ts                          stay-window resolver + formatter
 │   ├── search.ts                        URL ↔ search-input bidirectional
@@ -166,6 +174,7 @@ src/
 │   ├── countries.ts                     53 supported countries
 │   ├── states.ts                        states/provinces for major countries
 │   ├── autocomplete.ts                  destination-suggestion grouping
-│   └── bookingValidation.ts             pure form validation + Luhn + FX math
+│   ├── bookingValidation.ts             pure form validation + Luhn + FX math
+│   └── recentlyViewed.ts                per-device localStorage list helpers
 └── types/graphql.ts                     hand-typed response shapes
 ```

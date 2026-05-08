@@ -7,10 +7,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { RoomAvailability } from "@/types/graphql";
+import type { Rate, RoomAvailability } from "@/types/graphql";
+import { FALLBACK_ROOM_IMAGE_URL } from "@/lib/constants";
+import { parseMoneyAmount } from "@/lib/money";
 import { RoomDetailsModal } from "./RoomDetailsModal";
 
-const SUBGRAPH_FALLBACK_IMG = "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=900&q=80&auto=format";
+type LowestRate = { value: number; rate: Rate };
 
 export function RoomRateCard({
   room,
@@ -36,13 +38,10 @@ export function RoomRateCard({
   const [expanded, setExpanded] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
-  const lowest = room.rates.reduce(
-    (acc, r) => {
-      const v = parseFloat(r.averageNightlyRate.amount);
-      return !acc || v < acc.value ? { value: v, rate: r } : acc;
-    },
-    null as null | { value: number; rate: (typeof room.rates)[number] },
-  );
+  const lowest = room.rates.reduce<LowestRate | null>((acc, r) => {
+    const v = parseMoneyAmount(r.averageNightlyRate);
+    return !acc || v < acc.value ? { value: v, rate: r } : acc;
+  }, null);
 
   const beds = room.roomType.bedConfiguration
     .map((b) => `${b.count} ${b.type.toLowerCase().replace("_", " ")}`)
@@ -54,7 +53,7 @@ export function RoomRateCard({
         {/* Left: image — 40% of the row width */}
         <div className="aspect-[4/3] md:aspect-auto md:min-h-[340px] bg-ink/5">
           <img
-            src={SUBGRAPH_FALLBACK_IMG}
+            src={FALLBACK_ROOM_IMAGE_URL}
             alt={room.roomType.name}
             className="w-full h-full object-cover"
           />
@@ -163,7 +162,7 @@ function RateOptionRow({
   adults,
   children,
 }: {
-  rate: import("@/types/graphql").Rate;
+  rate: Rate;
   isMostPopular: boolean;
   showTaxes: boolean;
   nights: number;
@@ -262,12 +261,8 @@ function RateOptionRow({
   );
 }
 
-function getDisplayPrice(
-  rate: import("@/types/graphql").Rate,
-  showTaxes: boolean,
-  nights: number,
-): number {
-  if (!showTaxes) return parseFloat(rate.averageNightlyRate.amount);
+function getDisplayPrice(rate: Rate, showTaxes: boolean, nights: number): number {
+  if (!showTaxes) return parseMoneyAmount(rate.averageNightlyRate);
   // Show all-in nightly average when "Show with taxes and fees" is on.
-  return parseFloat(rate.totalWithTaxes.amount) / Math.max(1, nights);
+  return parseMoneyAmount(rate.totalWithTaxes) / Math.max(1, nights);
 }

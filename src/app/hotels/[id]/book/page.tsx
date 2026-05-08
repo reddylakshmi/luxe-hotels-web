@@ -17,6 +17,8 @@ import { RATES_QUERY } from "@/lib/queries";
 import type { HotelRates, Rate, RoomAvailability } from "@/types/graphql";
 import { resolveStay, fmtDate } from "@/lib/stay";
 import { fromSearchParams as guestsFrom } from "@/lib/guests";
+import { picker } from "@/lib/searchParams";
+import { parseMoneyAmount, formatAmount } from "@/lib/money";
 import { computeChargeSummary } from "@/lib/bookingValidation";
 import { BrandLogo } from "@/components/BrandLogo";
 import { HoldTimer } from "@/components/HoldTimer";
@@ -34,10 +36,7 @@ export default async function BookPage({
   params: { id: string };
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const pick = (k: string) =>
-    Array.isArray(searchParams[k])
-      ? (searchParams[k] as string[])[0]
-      : (searchParams[k] as string | undefined);
+  const pick = picker(searchParams);
 
   const stay = resolveStay({ checkIn: pick("checkIn"), checkOut: pick("checkOut") });
   const guests = guestsFrom(searchParams);
@@ -56,8 +55,10 @@ export default async function BookPage({
       children: guests.children,
       currency,
     });
-  } catch {
-    // best-effort — fall through and show a not-found state below
+  } catch (err) {
+    // Surface the failure in server logs so missing rate data is debuggable —
+    // the user still sees a graceful NotFound below.
+    console.error("[book] RATES_QUERY failed for hotel", params.id, err);
   }
 
   const hotel = data?.hotel;
@@ -74,10 +75,12 @@ export default async function BookPage({
     return <NotFound hotelId={params.id} />;
   }
 
-  const subtotal = parseFloat(selectedRate.taxesAndFees.subtotal.amount);
-  const taxes = parseFloat(selectedRate.taxesAndFees.taxes.amount);
-  const fees = parseFloat(selectedRate.taxesAndFees.fees.amount);
-  const charges = computeChargeSummary({ subtotal, taxes, fees, currency });
+  const charges = computeChargeSummary({
+    subtotal: parseMoneyAmount(selectedRate.taxesAndFees.subtotal),
+    taxes: parseMoneyAmount(selectedRate.taxesAndFees.taxes),
+    fees: parseMoneyAmount(selectedRate.taxesAndFees.fees),
+    currency,
+  });
 
   const editStayHref =
     `/hotels/${params.id}/rates?` +
@@ -117,12 +120,7 @@ export default async function BookPage({
       <section className="bg-cream border-b border-ink/10">
         <div className="container-x py-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
           <Stat label="Stay Dates" value={`${fmtDate(stay.checkIn)} → ${fmtDate(stay.checkOut)}`} />
-          <Stat
-            label="Total Stay"
-            value={`${charges.total.toLocaleString(undefined, {
-              minimumFractionDigits: 2, maximumFractionDigits: 2,
-            })} ${charges.currency}`}
-          />
+          <Stat label="Total Stay" value={formatAmount(charges.total, charges.currency)} />
           <HoldTimer backToRatesHref={editStayHref} />
         </div>
       </section>

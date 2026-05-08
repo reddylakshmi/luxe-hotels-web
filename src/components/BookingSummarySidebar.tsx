@@ -11,11 +11,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { fmtDate } from "@/lib/stay";
 import type { ChargeSummary } from "@/lib/bookingValidation";
+import { FALLBACK_ROOM_IMAGE_URL } from "@/lib/constants";
+import { formatAmount } from "@/lib/money";
 import type { RoomAvailability, Rate } from "@/types/graphql";
 import { RoomDetailsModal } from "./RoomDetailsModal";
-
-const SUBGRAPH_FALLBACK_IMG =
-  "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=900&q=80&auto=format";
 
 export function BookingSummarySidebar({
   hotelName,
@@ -44,15 +43,14 @@ export function BookingSummarySidebar({
 }) {
   const [showDetails, setShowDetails] = useState(false);
   const isMember = selectedRate?.ratePlan.type === "MEMBER_RATE";
-  const fmt = (n: number) =>
-    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (n: number) => formatAmount(n, charges.currency);
 
   return (
     <aside className="md:sticky md:top-6 self-start border border-ink/10 bg-white">
       {/* Room photo */}
       <div className="aspect-[4/3] bg-ink/5">
         <img
-          src={SUBGRAPH_FALLBACK_IMG}
+          src={FALLBACK_ROOM_IMAGE_URL}
           alt={rateRoom.name}
           className="w-full h-full object-cover"
         />
@@ -105,21 +103,13 @@ export function BookingSummarySidebar({
             Summary of Charges
           </div>
           <dl className="text-sm space-y-1">
-            <Row
-              label="Subtotal"
-              value={`${fmt(charges.subtotal)} ${charges.currency}`}
-            />
-            <Row
-              label="Taxes"
-              value={`${fmt(charges.taxes)} ${charges.currency}`}
-            />
-            <Row label="Fees" value={`${fmt(charges.fees)} ${charges.currency}`} />
+            <Row label="Subtotal" value={money(charges.subtotal)} />
+            <Row label="Taxes" value={money(charges.taxes)} />
+            <Row label="Fees" value={money(charges.fees)} />
           </dl>
           <div className="mt-3 pt-3 border-t border-ink/10 flex items-baseline justify-between">
             <span className="text-sm font-medium">Total</span>
-            <span className="font-serif text-xl">
-              {fmt(charges.total)} {charges.currency}
-            </span>
+            <span className="font-serif text-xl">{money(charges.total)}</span>
           </div>
           {selectedRate && selectedRate.pointsEarned > 0 && (
             <p className="text-xs text-ink/60 mt-2">

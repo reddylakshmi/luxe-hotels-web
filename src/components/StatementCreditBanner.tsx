@@ -3,14 +3,14 @@
 // via computeChargeSummary().
 
 import type { ChargeSummary } from "@/lib/bookingValidation";
+import { formatAmount } from "@/lib/money";
 
 export function StatementCreditBanner({
   charges,
 }: {
   charges: ChargeSummary;
 }) {
-  const fmt = (n: number) =>
-    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (n: number) => formatAmount(n, charges.currency);
 
   return (
     <section className="border border-amber-200 bg-amber-50/70">
@@ -31,18 +31,16 @@ export function StatementCreditBanner({
 
         <dl className="text-sm grid grid-cols-[auto_auto] gap-x-4 gap-y-1 justify-self-end">
           <dt className="text-ink/65">Total Stay:</dt>
-          <dd className="text-right font-medium">
-            {fmt(charges.total)} {charges.currency}
-          </dd>
+          <dd className="text-right font-medium">{money(charges.total)}</dd>
           <dt className="text-ink/65">Statement Credit:</dt>
           <dd className="text-right text-amber-700">
-            −{fmt(charges.statementCreditAmountUsd)} USD
+            −{formatAmount(charges.statementCreditAmountUsd, "USD")}
           </dd>
           <dt className="text-ink/65 font-medium pt-1 border-t border-ink/10 mt-1">
             Total After Statement Credit:
           </dt>
           <dd className="text-right font-medium pt-1 border-t border-ink/10 mt-1">
-            {fmt(charges.totalAfterStatementCredit)} {charges.currency}
+            {money(charges.totalAfterStatementCredit)}
           </dd>
         </dl>
 

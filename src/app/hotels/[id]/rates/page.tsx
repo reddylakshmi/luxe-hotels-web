@@ -4,9 +4,9 @@ import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
 import { RATES_QUERY } from "@/lib/queries";
 import type { HotelRates } from "@/types/graphql";
-import { resolveStay } from "@/lib/stay";
+import { resolveStay, fmtDate } from "@/lib/stay";
 import { fromSearchParams as guestsFrom } from "@/lib/guests";
-import { fmtDate } from "@/lib/stay";
+import { picker } from "@/lib/searchParams";
 import { BrandLogo } from "@/components/BrandLogo";
 import { StayUpdateBar } from "@/components/StayUpdateBar";
 import { RoomRateCard } from "@/components/RoomRateCard";
@@ -21,8 +21,7 @@ export default async function RatesPage({
   params: { id: string };
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const pick = (k: string) =>
-    Array.isArray(searchParams[k]) ? (searchParams[k] as string[])[0] : (searchParams[k] as string | undefined);
+  const pick = picker(searchParams);
 
   const stay = resolveStay({
     checkIn: pick("checkIn"),

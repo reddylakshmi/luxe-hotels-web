@@ -24,14 +24,22 @@ top-level field.
 |---|---|---|---|
 | Home — landing carousel + brand story | `/` | [`HOME_QUERY`](#home_query) | property · content |
 | Find a hotel — results + filters + sort | `/search` | [`SEARCH_HOTELS_QUERY`](#search_hotels_query) | property · pricing |
-| Hotels list + city filter | `/hotels` | [`HOTELS_LIST_QUERY`](#hotels_list_query) | property |
+| Hotels list + city/country filter | `/hotels` | [`HOTELS_LIST_QUERY`](#hotels_list_query) | property |
+| Destination autocomplete (typeahead) | search bar (any page) | [`DESTINATION_SUGGESTIONS_QUERY`](#destination_suggestions_query) | property |
 | Hotel detail | `/hotels/[id]` | [`HOTEL_DETAIL_QUERY`](#hotel_detail_query) | property · experiences · meetings |
+| Select a Room and Rate | `/hotels/[id]/rates` | [`RATES_QUERY`](#rates_query) | property · pricing |
 | Stories list + category filter | `/stories` | [`STORIES_LIST_QUERY`](#stories_list_query) | content |
 | Story detail | `/stories/[slug]` | [`STORY_DETAIL_QUERY`](#story_detail_query) | content · property |
 | Offers | `/offers` | [`OFFERS_QUERY`](#offers_query) | content · property |
 | Brands list | `/brands` | [`BRANDS_LIST_QUERY`](#brands_list_query) | property |
 | Brand detail + portfolio | `/brands/[id]` | [`BRAND_DETAIL_QUERY`](#brand_detail_query) | property |
 | Inspirations | `/inspirations` (when added) | [`INSPIRATIONS_QUERY`](#inspirations_query) | content |
+
+> **Booking pages.** The Complete Your Booking page (`/hotels/[id]/book`)
+> and its confirmation step both re-use [`RATES_QUERY`](#rates_query) to
+> resolve the room+rate the user picked, plus
+> [`HOTEL_DETAIL_QUERY`](#hotel_detail_query) for the room metadata in the
+> sidebar. They don't introduce new queries.
 
 ---
 
@@ -197,6 +205,45 @@ query HotelsList($filter: HotelFilter, $first: Int) {
 
 ---
 
+## `DESTINATION_SUGGESTIONS_QUERY`
+
+**Page:** any page that mounts the search bar — fired by
+[`src/components/DestinationAutocomplete.tsx`](./src/components/DestinationAutocomplete.tsx)
+on every keystroke (debounced 200ms, min 2 chars).
+
+**Functionality:** typeahead for the destination input. Returns a ranked
+mix of cities, countries, and hotels matching the partial query. Used on:
+
+- the hero / refinement search bar (home, brand pages, `/search`)
+- the inline filter on `/hotels` (Hotels & Destinations)
+
+**Subgraphs touched:** `property`.
+
+**Variables:**
+- `query: String!` — partial text the user has typed (≥ 2 chars)
+- `limit: Int = 10` — cap on returned items
+
+```graphql
+query DestinationSuggestions($query: String!, $limit: Int) {
+  destinationSuggestions(query: $query, limit: $limit) {
+    type            # CITY | COUNTRY | HOTEL — drives the row's icon + click action
+    label           # bold display text ("Paris", "France", "The Grand Palais Paris")
+    sublabel        # secondary line ("France · 5 hotels", "5 Avenue Montaigne, …")
+    hotelId         # set when type == HOTEL — for direct nav to /hotels/{id}/rates
+    hotelSlug
+    city            # set when type == CITY — for filter pre-fill
+    country         # set when type == COUNTRY
+    countryCode
+  }
+}
+```
+
+**Ranking semantics:** the property subgraph applies prefix-then-substring
+matching, broad-first within each tier — cities > countries > hotels.
+Client-side, the dropdown groups results by `type` in the same order.
+
+---
+
 ## `HOTEL_DETAIL_QUERY`
 
 **Page:** `/hotels/[id]` — [`src/app/hotels/[id]/page.tsx`](./src/app/hotels/%5Bid%5D/page.tsx)
@@ -238,6 +285,94 @@ query HotelDetail($id: ID!) {
     }
     experiences { id name durationMinutes pricePerPerson { amount currency } category }
     eventSpaces { id name capacityStyles { setup capacity } }
+  }
+}
+```
+
+---
+
+## `RATES_QUERY`
+
+**Page:** `/hotels/[id]/rates` — [`src/app/hotels/[id]/rates/page.tsx`](./src/app/hotels/%5Bid%5D/rates/page.tsx)
+**Also reused by:** `/hotels/[id]/book` (resolves the user's selected
+room+rate from the URL params) and the booking confirmation page.
+
+**Functionality:** drives the **Select a Room and Rate** page. Returns
+the hotel's brand + address for the header, plus full availability — every
+room type with its rate plans (Flexible / Member Exclusive / Package),
+tax breakdown, points-earned, and a `rateToken` the booking flow forwards
+to confirmation.
+
+**Subgraphs touched:** `property` (hotel + rooms), `pricing`
+(`Hotel.availability` extension via federation).
+
+**Variables:**
+- `id: ID!` — hotel id (from the route)
+- `checkIn: Date!` / `checkOut: Date!`
+- `adults: Int!` / `children: Int`
+- `currency: String` — display currency; pricing FX-converts via USD pivot
+
+```graphql
+query HotelRates(
+  $id: ID!
+  $checkIn: Date!
+  $checkOut: Date!
+  $adults: Int!
+  $children: Int
+  $currency: String
+) {
+  hotel(id: $id) {
+    id name slug starRating
+    brand { id name tier accentColor logoUrl }
+    location {
+      address { line1 line2 city state postalCode countryCode }
+      coordinates { latitude longitude }
+    }
+    media(first: 1, categories: [EXTERIOR]) {
+      edges { node { url altText } }
+    }
+
+    # Federated reach into the pricing subgraph.
+    availability(
+      checkIn: $checkIn
+      checkOut: $checkOut
+      adults: $adults
+      children: $children
+      currency: $currency
+    ) {
+      nights currency
+      lowestRate { amount currency }
+      roomAvailabilities {
+        availableCount
+        roomType {
+          id code name category sizeSqm view
+          maxOccupancy { adults children }
+          bedConfiguration { type count }
+          description { text }
+        }
+        rates {
+          id
+          ratePlan {
+            id code name type      # BEST_AVAILABLE | MEMBER_RATE | PACKAGE
+            description refundable breakfastIncluded
+            loyaltyEligible loyaltyMultiplier
+            cancellationPolicy { type description deadlineHours }
+          }
+          averageNightlyRate { amount currency }
+          totalRate { amount currency }
+          totalWithTaxes { amount currency }
+          taxesAndFees {
+            subtotal { amount }
+            taxes    { amount }
+            fees     { amount }
+            total    { amount }
+          }
+          pointsEarned
+          availableRooms
+          rateToken              # passed to /book and forwarded to confirmation
+        }
+      }
+    }
   }
 }
 ```

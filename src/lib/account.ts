@@ -183,6 +183,39 @@ export type AddCardInput = {
 };
 export type AddCardErrors = Partial<Record<"holderName" | "cardNumber" | "expiry", string>>;
 
+/** Schema enum AddressType — HOME / WORK / BILLING / OTHER. */
+export const ADDRESS_TYPES = ["HOME", "WORK", "BILLING", "OTHER"] as const;
+export type AddressType = (typeof ADDRESS_TYPES)[number];
+
+export type AddressFormInput = {
+  type?: string;
+  line1?: string;
+  line2?: string;
+  city?: string;
+  stateCode?: string;
+  postalCode?: string;
+  countryCode?: string;
+  isPrimary?: boolean;
+};
+export type AddressFormErrors = Partial<
+  Record<"type" | "line1" | "city" | "countryCode" | "stateCode" | "postalCode", string>
+>;
+
+export function validateAddressForm(input: AddressFormInput): AddressFormErrors {
+  const errors: AddressFormErrors = {};
+  if (!input.type || !ADDRESS_TYPES.includes(input.type as AddressType)) {
+    errors.type = "Pick an address type";
+  }
+  if (!input.line1 || !input.line1.trim()) errors.line1 = "Street address is required";
+  if (!input.city || !input.city.trim()) errors.city = "City is required";
+  const country = validateCountryCode(input.countryCode);
+  if (country) errors.countryCode = country;
+  else if (!input.countryCode || !input.countryCode.trim()) {
+    errors.countryCode = "Country is required";
+  }
+  return errors;
+}
+
 /**
  * Parse "MM/YY" or "MM/YYYY" → { month, year } as numbers, or null on invalid shape.
  * Two-digit years are interpreted as 20YY (no card industry uses 19YY).

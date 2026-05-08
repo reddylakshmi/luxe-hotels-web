@@ -17,8 +17,9 @@ import { getSession } from "@/lib/authSession";
 import type { GuestProfile, Reservation } from "@/types/graphql";
 import { formatMemberSince } from "@/lib/account";
 import { AccountSidebar } from "@/components/AccountSidebar";
-import { AccountAddresses, AccountTrips } from "@/components/AccountSections";
+import { AccountTrips } from "@/components/AccountSections";
 import { ProfileEditor } from "@/components/ProfileEditor";
+import { AddressesManager } from "@/components/AddressesManager";
 import { PaymentsManager } from "@/components/PaymentsManager";
 
 type Resp = {
@@ -74,7 +75,7 @@ export default async function AccountPage() {
 
         <div className="flex flex-col gap-12 min-w-0 mt-8 md:mt-0">
           <ProfileEditor guest={guest} />
-          <AccountAddresses addresses={guest.addresses} />
+          <AddressesManager addresses={guest.addresses} />
           <PaymentsManager
             payments={guest.paymentMethods.edges.map((e) => e.node)}
           />

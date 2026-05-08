@@ -13,6 +13,7 @@ import {
   validateDateOfBirth,
   validateCountryCode,
   validateProfileEdit,
+  validateAddressForm,
   parseExpiry,
 } from "./account";
 import type { GuestAddress, PaymentMethodSummary } from "@/types/graphql";
@@ -242,6 +243,39 @@ describe("validateProfileEdit", () => {
     expect(errors.phone).toMatch(/phone/);
     expect(errors.dateOfBirth).toMatch(/YYYY-MM-DD/);
     expect(errors.nationality).toMatch(/2-letter/);
+  });
+});
+
+describe("validateAddressForm", () => {
+  const valid = {
+    type: "HOME",
+    line1: "123 Powell St",
+    city: "San Francisco",
+    countryCode: "US",
+  };
+  it("returns no errors for a complete valid form", () => {
+    expect(validateAddressForm(valid)).toEqual({});
+  });
+  it("flags missing required fields", () => {
+    const errors = validateAddressForm({});
+    expect(errors.type).toBeDefined();
+    expect(errors.line1).toMatch(/required/i);
+    expect(errors.city).toMatch(/required/i);
+    expect(errors.countryCode).toBeDefined();
+  });
+  it("rejects unknown address type", () => {
+    expect(validateAddressForm({ ...valid, type: "VACATION" }).type).toBeDefined();
+  });
+  it("rejects malformed country code (3 letters)", () => {
+    expect(validateAddressForm({ ...valid, countryCode: "USA" }).countryCode).toMatch(/2-letter/);
+  });
+  it("treats whitespace-only line1 as missing", () => {
+    expect(validateAddressForm({ ...valid, line1: "   " }).line1).toMatch(/required/i);
+  });
+  it("accepts optional line2/stateCode/postalCode without complaint", () => {
+    expect(
+      validateAddressForm({ ...valid, line2: "Apt 4", stateCode: "CA", postalCode: "94102" }),
+    ).toEqual({});
   });
 });
 

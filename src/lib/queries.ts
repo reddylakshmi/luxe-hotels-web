@@ -284,6 +284,43 @@ export const UPDATE_GUEST_PROFILE_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const ADD_ADDRESS_MUTATION = /* GraphQL */ `
+  mutation AddAddress($input: AddAddressInput!) {
+    addAddress(input: $input) {
+      __typename
+      ... on GuestAddress {
+        id type line1 line2 city stateCode postalCode countryCode isPrimary
+      }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on AuthorizationError { code message }
+    }
+  }
+`;
+
+export const UPDATE_ADDRESS_MUTATION = /* GraphQL */ `
+  mutation UpdateAddress($id: ID!, $input: UpdateAddressInput!) {
+    updateAddress(id: $id, input: $input) {
+      __typename
+      ... on GuestAddress {
+        id type line1 line2 city stateCode postalCode countryCode isPrimary
+      }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on NotFoundError { code message }
+      ... on AuthorizationError { code message }
+    }
+  }
+`;
+
+export const REMOVE_ADDRESS_MUTATION = /* GraphQL */ `
+  mutation RemoveAddress($id: ID!) { removeAddress(id: $id) }
+`;
+
+export const SET_PRIMARY_ADDRESS_MUTATION = /* GraphQL */ `
+  mutation SetPrimaryAddress($id: ID!) {
+    setPrimaryAddress(id: $id) { id isPrimary }
+  }
+`;
+
 export const ADD_PAYMENT_METHOD_MUTATION = /* GraphQL */ `
   mutation AddPaymentMethod($input: AddPaymentMethodInput!) {
     addPaymentMethod(input: $input) {

@@ -13,14 +13,20 @@ import { revalidatePath } from "next/cache";
 import { gqlFetch } from "./graphql";
 import { getSession } from "./authSession";
 import {
+  ADD_ADDRESS_MUTATION,
   ADD_PAYMENT_METHOD_MUTATION,
+  REMOVE_ADDRESS_MUTATION,
   REMOVE_PAYMENT_METHOD_MUTATION,
   SET_DEFAULT_PAYMENT_METHOD_MUTATION,
+  SET_PRIMARY_ADDRESS_MUTATION,
+  UPDATE_ADDRESS_MUTATION,
   UPDATE_GUEST_PROFILE_MUTATION,
 } from "./queries";
 import {
   parseExpiry,
+  validateAddressForm,
   validateProfileEdit,
+  type AddressFormErrors,
   type ProfileEditErrors,
 } from "./account";
 import {
@@ -120,6 +126,155 @@ export async function updateProfileAction(
     };
   }
   return { ok: false, formError: r.message };
+}
+
+// ── Address mutations ────────────────────────────────────────────────────
+
+export type AddressFormState = {
+  ok: boolean;
+  errors?: AddressFormErrors;
+  formError?: string;
+};
+
+type AddressGqlNode = { __typename: "GuestAddress"; id: string };
+type AddAddressResult = AddressGqlNode | ValidationGqlError | AuthorizationGqlError;
+type UpdateAddressResult =
+  | AddressGqlNode
+  | ValidationGqlError
+  | { __typename: "NotFoundError"; code: string; message: string }
+  | AuthorizationGqlError;
+
+function parseAddressForm(formData: FormData) {
+  const v = (k: string) => ((formData.get(k) as string) || "").trim();
+  return {
+    type: v("type") || undefined,
+    line1: v("line1") || undefined,
+    line2: v("line2") || undefined,
+    city: v("city") || undefined,
+    stateCode: v("stateCode") || undefined,
+    postalCode: v("postalCode") || undefined,
+    countryCode: v("countryCode").toUpperCase() || undefined,
+    isPrimary: formData.get("isPrimary") === "on",
+  };
+}
+
+export async function addAddressAction(
+  _prev: AddressFormState,
+  formData: FormData,
+): Promise<AddressFormState> {
+  const parsed = parseAddressForm(formData);
+  const errors = validateAddressForm(parsed);
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+  const input = {
+    type: parsed.type!,
+    line1: parsed.line1!,
+    line2: parsed.line2 ?? null,
+    city: parsed.city!,
+    stateCode: parsed.stateCode ?? null,
+    postalCode: parsed.postalCode ?? null,
+    countryCode: parsed.countryCode!,
+    isPrimary: parsed.isPrimary,
+  };
+
+  let result: { addAddress: AddAddressResult };
+  try {
+    result = await authedFetch<{ addAddress: AddAddressResult }>(ADD_ADDRESS_MUTATION, { input });
+  } catch (err) {
+    return {
+      ok: false,
+      formError: `We couldn't save your address — please try again. (${(err as Error).message})`,
+    };
+  }
+  const r = result.addAddress;
+  if (r.__typename === "GuestAddress") {
+    revalidatePath("/account");
+    return { ok: true };
+  }
+  if (r.__typename === "ValidationError") {
+    return {
+      ok: false,
+      errors: fieldErrorsToMap<keyof AddressFormErrors>(r.fieldErrors),
+      formError: r.fieldErrors.length === 0 ? r.message : undefined,
+    };
+  }
+  return { ok: false, formError: r.message };
+}
+
+export async function updateAddressAction(
+  _prev: AddressFormState,
+  formData: FormData,
+): Promise<AddressFormState> {
+  const id = (formData.get("addressId") as string) || "";
+  if (!id) return { ok: false, formError: "Missing address id." };
+  const parsed = parseAddressForm(formData);
+  const errors = validateAddressForm(parsed);
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+  const input = {
+    type: parsed.type!,
+    line1: parsed.line1!,
+    line2: parsed.line2 ?? null,
+    city: parsed.city!,
+    stateCode: parsed.stateCode ?? null,
+    postalCode: parsed.postalCode ?? null,
+    countryCode: parsed.countryCode!,
+    isPrimary: parsed.isPrimary,
+  };
+
+  let result: { updateAddress: UpdateAddressResult };
+  try {
+    result = await authedFetch<{ updateAddress: UpdateAddressResult }>(UPDATE_ADDRESS_MUTATION, {
+      id,
+      input,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      formError: `We couldn't update your address — please try again. (${(err as Error).message})`,
+    };
+  }
+  const r = result.updateAddress;
+  if (r.__typename === "GuestAddress") {
+    revalidatePath("/account");
+    return { ok: true };
+  }
+  if (r.__typename === "ValidationError") {
+    return {
+      ok: false,
+      errors: fieldErrorsToMap<keyof AddressFormErrors>(r.fieldErrors),
+      formError: r.fieldErrors.length === 0 ? r.message : undefined,
+    };
+  }
+  if (r.__typename === "NotFoundError") {
+    return { ok: false, formError: "That address is no longer on file." };
+  }
+  return { ok: false, formError: r.message };
+}
+
+export async function removeAddressAction(formData: FormData): Promise<void> {
+  const id = (formData.get("addressId") as string) || "";
+  if (!id) return;
+  try {
+    await authedFetch<{ removeAddress: boolean }>(REMOVE_ADDRESS_MUTATION, { id });
+  } catch {
+    // Same swallow-and-revalidate pattern as removePaymentAction.
+  }
+  revalidatePath("/account");
+}
+
+export async function setPrimaryAddressAction(formData: FormData): Promise<void> {
+  const id = (formData.get("addressId") as string) || "";
+  if (!id) return;
+  try {
+    await authedFetch<{ setPrimaryAddress: { id: string } | null }>(
+      SET_PRIMARY_ADDRESS_MUTATION,
+      { id },
+    );
+  } catch {
+    // ditto
+  }
+  revalidatePath("/account");
 }
 
 // ── Add payment method ───────────────────────────────────────────────────

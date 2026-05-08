@@ -4,12 +4,7 @@
 // / EmptyState helpers exported here.
 
 import Link from "next/link";
-import type { GuestAddress, Reservation } from "@/types/graphql";
-import {
-  addressLabel,
-  formatAddressLine,
-  sortPrimaryFirst,
-} from "@/lib/account";
+import type { Reservation } from "@/types/graphql";
 
 // ── Section shell (exported so the editable client components reuse it) ──
 
@@ -55,46 +50,10 @@ export function EmptyState({ message }: { message: string }) {
   );
 }
 
-// Profile + payments live in their own client-component files
-// (ProfileEditor / PaymentsManager) since they own edit state. The
-// shared Section/Field/EmptyState helpers above are reused there.
-
-// ── Addresses ────────────────────────────────────────────────────────────
-
-export function AccountAddresses({ addresses }: { addresses: GuestAddress[] }) {
-  const ordered = sortPrimaryFirst(addresses);
-  const description =
-    ordered.length === 0
-      ? "Self-serve address editing is coming soon."
-      : `${ordered.length} on file. Editing coming soon.`;
-
-  return (
-    <Section id="addresses" title="Addresses" description={description}>
-      {ordered.length === 0 ? (
-        <EmptyState message="No addresses on file yet." />
-      ) : (
-        <ul>
-          {ordered.map((a) => (
-            <li
-              key={a.id}
-              className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 px-6 py-4 border-b border-ink/8 last:border-0"
-            >
-              <div className="text-xs uppercase tracking-[0.18em] text-ink/55 sm:w-44 sm:shrink-0 flex items-center gap-2">
-                <span>{addressLabel(a.type)}</span>
-                {a.isPrimary && (
-                  <span className="inline-block px-1.5 py-0.5 text-[10px] tracking-[0.14em] bg-goldDeep/15 text-goldDeep rounded-sm">
-                    PRIMARY
-                  </span>
-                )}
-              </div>
-              <div className="text-sm text-ink/90">{formatAddressLine(a)}</div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Section>
-  );
-}
+// Profile / addresses / payments live in their own client-component
+// files (ProfileEditor / AddressesManager / PaymentsManager) since they
+// own edit state. The shared Section/Field/EmptyState helpers above are
+// reused there.
 
 // ── Recent trips ─────────────────────────────────────────────────────────
 

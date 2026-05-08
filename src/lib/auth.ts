@@ -106,6 +106,40 @@ export function isSessionExpired(
   return session.expiresAt <= now;
 }
 
+// ── returnTo (post-auth redirect target) ──────────────────────────────
+
+/** Where the post-auth redirect lands when nothing valid was passed. */
+export const DEFAULT_AUTH_REDIRECT = "/";
+
+/**
+ * Validate a {@code returnTo} URL against the open-redirect class of
+ * vulnerabilities. Only same-origin app paths pass:
+ *
+ *   ✓  /hotels/abc/book?x=1
+ *   ✓  /sign-up
+ *   ✗  //evil.com         (protocol-relative — would resolve to evil.com)
+ *   ✗  https://evil.com   (absolute external)
+ *   ✗  javascript:alert() (script URL)
+ *   ✗  /path/../../etc    (traversal — doesn't matter on the client but
+ *                          we prefer normal app URLs anyway)
+ *   ✗  not-starting-with-slash
+ *
+ * Returns the input when valid, the {@link DEFAULT_AUTH_REDIRECT} otherwise.
+ * Pure — no React, no DOM, no network — so vitest can pin every branch.
+ */
+export function safeReturnTo(value: string | undefined | null): string {
+  if (!value) return DEFAULT_AUTH_REDIRECT;
+  const v = value.trim();
+  if (v.length === 0) return DEFAULT_AUTH_REDIRECT;
+  if (!v.startsWith("/")) return DEFAULT_AUTH_REDIRECT;
+  if (v.startsWith("//")) return DEFAULT_AUTH_REDIRECT; // protocol-relative
+  if (v.startsWith("/\\") || v.includes("\\")) return DEFAULT_AUTH_REDIRECT; // backslash tricks
+  if (v.includes("://")) return DEFAULT_AUTH_REDIRECT; // absolute URL embedded
+  if (v.includes("..")) return DEFAULT_AUTH_REDIRECT; // path traversal
+  // Anything else is a relative app path → safe to honour.
+  return v;
+}
+
 /** Compose a Session from the AuthPayload returned by signIn / signUp. */
 export function sessionFromAuthPayload(
   payload: {

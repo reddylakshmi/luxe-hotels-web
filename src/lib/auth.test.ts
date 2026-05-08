@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  DEFAULT_AUTH_REDIRECT,
   isSessionExpired,
+  safeReturnTo,
   sessionFromAuthPayload,
   validateConfirmPassword,
   validatePassword,
@@ -128,6 +130,55 @@ describe("isSessionExpired", () => {
 
   it("is true after expiry", () => {
     expect(isSessionExpired({ ...fresh, expiresAt: now - 1 }, now)).toBe(true);
+  });
+});
+
+describe("safeReturnTo", () => {
+  it("returns the default for null / undefined / empty / blank", () => {
+    expect(safeReturnTo(null)).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo(undefined)).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("")).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("   ")).toBe(DEFAULT_AUTH_REDIRECT);
+  });
+
+  it("rejects values that don't start with /", () => {
+    expect(safeReturnTo("hotels/abc")).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("home")).toBe(DEFAULT_AUTH_REDIRECT);
+  });
+
+  it("rejects protocol-relative URLs (open-redirect class)", () => {
+    expect(safeReturnTo("//evil.com")).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("//evil.com/path")).toBe(DEFAULT_AUTH_REDIRECT);
+  });
+
+  it("rejects embedded protocols / scheme-only inputs", () => {
+    expect(safeReturnTo("https://evil.com")).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("/anything://evil.com")).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("javascript:alert(1)")).toBe(DEFAULT_AUTH_REDIRECT);
+  });
+
+  it("rejects backslashes (Windows-style URL tricks)", () => {
+    expect(safeReturnTo("/\\evil.com")).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("/path\\nasty")).toBe(DEFAULT_AUTH_REDIRECT);
+  });
+
+  it("rejects path-traversal attempts", () => {
+    expect(safeReturnTo("/path/..")).toBe(DEFAULT_AUTH_REDIRECT);
+    expect(safeReturnTo("/path/../etc/passwd")).toBe(DEFAULT_AUTH_REDIRECT);
+  });
+
+  it("accepts well-formed same-origin app paths", () => {
+    expect(safeReturnTo("/")).toBe("/");
+    expect(safeReturnTo("/hotels")).toBe("/hotels");
+    expect(safeReturnTo("/hotels/abc/book")).toBe("/hotels/abc/book");
+    expect(safeReturnTo("/hotels/abc/book?x=1&y=2")).toBe("/hotels/abc/book?x=1&y=2");
+    expect(safeReturnTo("/sign-up")).toBe("/sign-up");
+  });
+
+  it("preserves query strings and hash fragments", () => {
+    expect(safeReturnTo("/search?destination=Paris#results")).toBe(
+      "/search?destination=Paris#results",
+    );
   });
 });
 

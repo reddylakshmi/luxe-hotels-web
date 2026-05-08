@@ -6,11 +6,13 @@ import { signInAction, type SignInState } from "@/lib/authActions";
 
 const initialState: SignInState = { ok: false };
 
-export function SignInForm() {
+export function SignInForm({ returnTo = "/" }: { returnTo?: string }) {
   const [state, formAction] = useFormState(signInAction, initialState);
+  const signUpHref = returnTo === "/" ? "/sign-up" : `/sign-up?returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <form action={formAction} noValidate className="space-y-5">
+      <input type="hidden" name="returnTo" value={returnTo} />
       <Field
         id="email"
         name="email"
@@ -40,7 +42,7 @@ export function SignInForm() {
 
       <p className="text-sm text-ink/70 text-center pt-2">
         New to Luxe?{" "}
-        <Link href="/sign-up" className="text-goldDeep underline hover:no-underline">
+        <Link href={signUpHref} className="text-goldDeep underline hover:no-underline">
           Create an account
         </Link>
       </p>

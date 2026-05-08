@@ -11,6 +11,8 @@ import { redirect } from "next/navigation";
 import { gqlFetch } from "./graphql";
 import { SIGN_IN_MUTATION, SIGN_UP_MUTATION } from "./queries";
 import {
+  DEFAULT_AUTH_REDIRECT,
+  safeReturnTo,
   sessionFromAuthPayload,
   validateSignInForm,
   validateSignUpForm,
@@ -50,8 +52,7 @@ type ValidationError = {
 type SignInResult = AuthPayload | AuthenticationError | ValidationError;
 type SignUpResult = AuthPayload | ValidationError;
 
-const REDIRECT_AFTER_AUTH = "/";
-const SIGNED_OUT_DESTINATION = "/";
+const SIGNED_OUT_DESTINATION = DEFAULT_AUTH_REDIRECT;
 
 // ── Sign in ─────────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ export async function signInAction(
 ): Promise<SignInState> {
   const email = ((formData.get("email") as string) || "").trim();
   const password = (formData.get("password") as string) || "";
+  const returnTo = safeReturnTo((formData.get("returnTo") as string) || null);
 
   const errors = validateSignInForm({ email, password });
   if (Object.keys(errors).length > 0) return { ok: false, errors };
@@ -84,7 +86,7 @@ export async function signInAction(
     return { ok: false, formError: payload.message };
   }
   writeSession(sessionFromAuthPayload(payload));
-  redirect(REDIRECT_AFTER_AUTH);
+  redirect(returnTo);
 }
 
 // ── Sign up ─────────────────────────────────────────────────────────────
@@ -101,6 +103,7 @@ export async function signUpAction(
   const acceptTerms = formData.get("acceptTerms") === "on";
   const phoneRaw = ((formData.get("phone") as string) || "").trim();
   const phone = phoneRaw.length > 0 ? phoneRaw : undefined;
+  const returnTo = safeReturnTo((formData.get("returnTo") as string) || null);
 
   const errors = validateSignUpForm({
     email, password, confirmPassword, firstName, lastName, acceptTerms,
@@ -137,7 +140,7 @@ export async function signUpAction(
     };
   }
   writeSession(sessionFromAuthPayload(payload));
-  redirect(REDIRECT_AFTER_AUTH);
+  redirect(returnTo);
 }
 
 // ── Sign out ────────────────────────────────────────────────────────────

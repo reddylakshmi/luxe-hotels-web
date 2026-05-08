@@ -6,11 +6,13 @@ import { signUpAction, type SignUpState } from "@/lib/authActions";
 
 const initialState: SignUpState = { ok: false };
 
-export function SignUpForm() {
+export function SignUpForm({ returnTo = "/" }: { returnTo?: string }) {
   const [state, formAction] = useFormState(signUpAction, initialState);
+  const signInHref = returnTo === "/" ? "/sign-in" : `/sign-in?returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <form action={formAction} noValidate className="space-y-5">
+      <input type="hidden" name="returnTo" value={returnTo} />
       <div className="grid md:grid-cols-2 gap-4">
         <Field
           id="firstName"
@@ -96,7 +98,7 @@ export function SignUpForm() {
 
       <p className="text-sm text-ink/70 text-center pt-2">
         Already a member?{" "}
-        <Link href="/sign-in" className="text-goldDeep underline hover:no-underline">
+        <Link href={signInHref} className="text-goldDeep underline hover:no-underline">
           Sign in
         </Link>
       </p>

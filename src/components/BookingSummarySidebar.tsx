@@ -28,6 +28,8 @@ export function BookingSummarySidebar({
   adults,
   children,
   editStayHref,
+  pointsRedeemed = 0,
+  loyaltyDiscount = 0,
 }: {
   hotelName: string;
   rateRoom: RoomAvailability["roomType"];
@@ -40,6 +42,11 @@ export function BookingSummarySidebar({
   adults: number;
   children: number;
   editStayHref: string;
+  /** Points the guest is redeeming on this booking. Drives the
+   *  "Loyalty redemption" line in the summary; 0 hides the row. */
+  pointsRedeemed?: number;
+  /** Cash impact of the redemption in the booking's currency. */
+  loyaltyDiscount?: number;
 }) {
   const [showDetails, setShowDetails] = useState(false);
   const isMember = selectedRate?.ratePlan.type === "MEMBER_RATE";
@@ -106,10 +113,25 @@ export function BookingSummarySidebar({
             <Row label="Subtotal" value={money(charges.subtotal)} />
             <Row label="Taxes" value={money(charges.taxes)} />
             <Row label="Fees" value={money(charges.fees)} />
+            {pointsRedeemed > 0 && loyaltyDiscount > 0 && (
+              <div className="flex justify-between items-baseline gap-3 text-goldDeep">
+                <dt>
+                  Loyalty redemption
+                  <span className="block text-[10px] tracking-[0.18em] uppercase text-ink/45">
+                    {pointsRedeemed.toLocaleString()} pts
+                  </span>
+                </dt>
+                <dd className="text-right tabular-nums">
+                  −{money(loyaltyDiscount)}
+                </dd>
+              </div>
+            )}
           </dl>
           <div className="mt-3 pt-3 border-t border-ink/10 flex items-baseline justify-between">
             <span className="text-sm font-medium">Total</span>
-            <span className="font-serif text-xl">{money(charges.total)}</span>
+            <span className="font-serif text-xl">
+              {money(Math.max(0, charges.total - (loyaltyDiscount || 0)))}
+            </span>
           </div>
           {selectedRate && selectedRate.pointsEarned > 0 && (
             <p className="text-xs text-ink/60 mt-2">

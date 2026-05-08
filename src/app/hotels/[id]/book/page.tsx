@@ -32,8 +32,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { HoldTimer } from "@/components/HoldTimer";
 import { StatementCreditBanner } from "@/components/StatementCreditBanner";
 import { MemberRateBanner } from "@/components/MemberRateBanner";
-import { BookingForm } from "@/components/BookingForm";
-import { BookingSummarySidebar } from "@/components/BookingSummarySidebar";
+import { BookingExperience } from "@/components/BookingExperience";
 
 type Resp = { hotel: HotelRates };
 
@@ -186,45 +185,38 @@ export default async function BookPage({
       {/* ── Two-column form + summary ────────────────────────────── */}
       <section className="container-x py-10">
         <h2 className="font-serif text-3xl mb-8">Complete Your Booking</h2>
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-8">
-          <div>
-            <BookingForm
-              bookingHref={editStayHref}
-              hotelId={params.id}
-              rateToken={rateToken}
-              ratePlanCode={ratePlanCode}
-              roomId={roomId}
-              prefillGuest={prefillFromProfileOrSession(profile, session?.guest)}
-              signedInLabel={
-                profile
-                  ? `${profile.name.firstName} ${profile.name.lastName}`
-                  : session
-                    ? `${session.guest.firstName} ${session.guest.lastName}`
-                    : undefined
-              }
-              savedAddresses={profile?.addresses ?? []}
-              savedPaymentMethods={
-                profile?.paymentMethods?.edges?.map((e) => e.node) ?? []
-              }
-              loyalty={loyalty}
-              bookingTotalUSD={charges.total}
-              bookingCurrency={currency}
-            />
-          </div>
-          <BookingSummarySidebar
-            hotelName={hotel.name}
-            rateRoom={room.roomType}
-            selectedRate={selectedRate}
-            charges={charges}
-            checkIn={stay.checkIn}
-            checkOut={stay.checkOut}
-            nights={hotel.availability.nights}
-            rooms={guests.rooms}
-            adults={guests.adults}
-            children={guests.children}
-            editStayHref={editStayHref}
-          />
-        </div>
+        <BookingExperience
+          bookingHref={editStayHref}
+          hotelId={params.id}
+          rateToken={rateToken}
+          ratePlanCode={ratePlanCode}
+          roomId={roomId}
+          prefillGuest={prefillFromProfileOrSession(profile, session?.guest)}
+          signedInLabel={
+            profile
+              ? `${profile.name.firstName} ${profile.name.lastName}`
+              : session
+                ? `${session.guest.firstName} ${session.guest.lastName}`
+                : undefined
+          }
+          savedAddresses={profile?.addresses ?? []}
+          savedPaymentMethods={
+            profile?.paymentMethods?.edges?.map((e) => e.node) ?? []
+          }
+          loyalty={loyalty}
+          bookingCurrency={currency}
+          hotelName={hotel.name}
+          rateRoom={room.roomType}
+          selectedRate={selectedRate}
+          charges={charges}
+          checkIn={stay.checkIn}
+          checkOut={stay.checkOut}
+          nights={hotel.availability.nights}
+          rooms={guests.rooms}
+          adults={guests.adults}
+          children={guests.children}
+          editStayHref={editStayHref}
+        />
       </section>
     </>
   );

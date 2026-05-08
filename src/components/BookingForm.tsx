@@ -104,6 +104,8 @@ export function BookingForm({
   loyalty = null,
   bookingTotalUSD = 0,
   bookingCurrency = "USD",
+  pointsToRedeem: pointsToRedeemProp,
+  onPointsChange,
 }: {
   bookingHref: string;
   hotelId: string;
@@ -127,6 +129,12 @@ export function BookingForm({
   /** Native currency the booking is charged in — drives the disclaimer
    *  on the points-redemption preview when it isn't USD. */
   bookingCurrency?: string;
+  /** Optional controlled value for the points panel — pass alongside
+   *  onPointsChange to lift the redemption state into a parent so the
+   *  sticky summary can react to it. Falls back to internal state when
+   *  omitted. */
+  pointsToRedeem?: number;
+  onPointsChange?: (next: number) => void;
 }) {
   const router = useRouter();
   // Build a returnTo for the "Sign in for faster booking" link so the
@@ -175,13 +183,22 @@ export function BookingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAddressId]);
   const [submitting, setSubmitting] = useState(false);
-  const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  // Re-clamp whenever the underlying loyalty / booking total moves so a
-  // stale higher value can't survive a price refresh.
+  // Controlled when a parent passes pointsToRedeem + onPointsChange,
+  // uncontrolled (own state) otherwise. Both branches still re-clamp
+  // when balance / booking total move so a stale higher value can't
+  // survive a price refresh.
+  const [internalPoints, setInternalPoints] = useState(0);
+  const isControlled = pointsToRedeemProp != null && !!onPointsChange;
+  const pointsToRedeem = isControlled ? pointsToRedeemProp! : internalPoints;
+  const setPointsToRedeem = (next: number) => {
+    if (isControlled) onPointsChange!(next);
+    else setInternalPoints(next);
+  };
   useEffect(() => {
     if (!loyalty) return;
     const clamped = clampPointsRedemption(pointsToRedeem, loyalty.available, bookingTotalUSD);
     if (clamped !== pointsToRedeem) setPointsToRedeem(clamped);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loyalty, bookingTotalUSD, pointsToRedeem]);
 
   const setGuest = (field: keyof GuestInformation, value: string) =>

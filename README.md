@@ -24,7 +24,8 @@ Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federa
 | `/sign-in` | Member sign-in form (email + password) | guest |
 | `/sign-up` | Create-account form (free tier, member rates, points) | guest |
 | `/account` | Signed-in account hub — profile · addresses · payment methods · recent trips, all editable inline (sticky-sidebar layout, Server Actions back add/edit/remove + set-primary/default flows) | guest · reservations |
-| `/trips` | Signed-in: list of `myReservations`. Signed-out: public confirmation-number lookup. | reservations · property |
+| `/trips` | Signed-in: list of `myReservations` (each row links to detail). Signed-out: public confirmation-number lookup. | reservations · property |
+| `/trips/[id]` | Trip detail — itinerary + status-aware actions (Online check-in, Cancel reservation), digital key when CHECKED_IN, charges + special requests + cancellation summary | reservations · property |
 | `/stories` | Article list with category filter | content |
 | `/stories/[slug]` | Article detail with author, tags, related hotels | content, property |
 | `/offers` | Active deal spotlights | content, property |
@@ -113,17 +114,20 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 - **Type safety.** `src/types/graphql.ts` is hand-written to match the queries in `src/lib/queries.ts`. When the schema changes, update both files. (Future improvement: add `graphql-codegen` to generate types from a downloaded supergraph SDL.)
 - **Locale.** All queries pass `locale: "en"`. The GraphQL layer handles fallback when a translation is missing — nothing in this app does.
 - **Account hub.** `/account` is one federated `MyAccount` query (guest + reservations subgraphs in one round-trip) feeding four sticky-sidebar sections: Profile, Addresses, Payment methods, Recent trips. Profile edits, address add / edit / remove / set-primary, and payment add / remove / set-default each post to a Server Action that calls the matching mutation and runs `revalidatePath('/account')`. Validation is pure (`lib/account.ts` — phone, ISO date, country code, address shape, card-expiry math) so vitest covers every branch. The header's "Hi, {firstName}" greeting links here.
+- **Trip detail.** `/trips/[id]` is the post-booking surface: itinerary, charges, special requests, payment summary, plus a sticky action sidebar that gates **Online check-in** (collapsing form for document type / number / ETA) and **Cancel reservation** on the server-side `canCheckInOnline` and `isRefundable` flags. Mutations (`mobileCheckIn`, `cancelReservation`) generate per-call idempotency keys via `crypto.randomUUID` and run `revalidatePath('/trips/[id]')`. When the reservation is `CHECKED_IN`, a Digital Key card surfaces the door code + expiry.
+- **Featured Hotels Book Now.** Each card on the home featured strip has a **Book Now** CTA that deep-links to `/hotels/<id>#rooms` — the existing `HotelTabs` component reads `window.location.hash` on mount, so guests land on Rooms & Suites with the tab already activated.
 
 ## Testing
 
 ```bash
-npm test           # full vitest suite (411 tests, <1s)
+npm test           # full vitest suite (426 tests, <1s)
 npm run test:watch # watch mode
 ```
 
 | Module | Tests | What it covers |
 |---|---|---|
 | `lib/account.test.ts` | 54 | Member-since formatter (UTC-stable), card-expiry math, primary-first sort, optional phone, DOB age window, country code, address-form composite |
+| `lib/trip.test.ts` | 15 | Stay-window formatter, cancellation-deadline parsing, mobile-check-in form validator (document type / number / ETA HH:MM) |
 | `lib/bookingValidation.test.ts` | 77 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
 | `lib/autocomplete.test.ts` | 17 | Group ordering (city → state → country → hotel), flatten, keyboard wraparound, hotel/city/state/country routing |
 | `lib/countries.test.ts` | ~20 | 53-country invariants, ISO codes, phone codes, zip-pattern correctness |
@@ -172,7 +176,9 @@ src/
 │   │   ├── sign-in/page.tsx             Sign-in form (SIGN_IN_MUTATION)
 │   │   └── sign-up/page.tsx             Create-account form (SIGN_UP_MUTATION)
 │   ├── account/page.tsx                 Account hub (MY_ACCOUNT_QUERY)
-│   └── trips/page.tsx                   My Trips list / find-by-confirmation
+│   └── trips/
+│       ├── page.tsx                     My Trips list / find-by-confirmation
+│       └── [id]/page.tsx                Trip detail (RESERVATION_DETAIL_QUERY + check-in / cancel)
 ├── components/
 │   ├── Header.tsx · Footer.tsx · Hero.tsx
 │   ├── SearchBar.tsx                    composable search (compact / full)
@@ -202,11 +208,12 @@ src/
 │   ├── ProfileEditor.tsx                Profile edit toggle (phone / DOB / nationality)
 │   ├── AddressesManager.tsx             Addresses add/edit/remove/set-primary
 │   ├── PaymentsManager.tsx              Payment-method add/remove/set-default
-│   ├── TripCard.tsx                     reservation card (shared list/lookup)
+│   ├── TripCard.tsx                     reservation card (shared list/lookup; linkable)
+│   ├── TripActions.tsx                  /trips/[id] sticky action panel (check-in form + cancel)
 │   └── FindReservationForm.tsx          public confirmation-number lookup
 ├── lib/
 │   ├── graphql.ts                       gqlFetch helper
-│   ├── queries.ts                       all GraphQL operations (27 ops total)
+│   ├── queries.ts                       all GraphQL operations (30 ops total)
 │   ├── graphqlAuthed.ts                 server-only authed gqlFetch wrapper
 │   ├── image.ts                         placeholder URL mapper
 │   ├── stay.ts                          stay-window resolver + formatter
@@ -228,6 +235,8 @@ src/
 │   ├── authSession.ts                   httpOnly session-cookie read/write
 │   ├── account.ts                       pure helpers: member-since, card expiry, primary-first sort, address validators
 │   ├── accountActions.ts                server actions: profile + address + payment mutations
+│   ├── trip.ts                          pure helpers: stay-window, cancellation deadline, check-in form validator
+│   ├── tripActions.ts                   server actions: mobileCheckIn + cancelReservation
 │   └── tripsActions.ts                  server action: find by confirmation #
 └── types/graphql.ts                     hand-typed response shapes
 ```

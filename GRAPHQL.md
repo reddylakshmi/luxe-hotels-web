@@ -32,6 +32,9 @@ top-level field.
 | Create account | `/sign-up` | [`SIGN_UP_MUTATION`](#sign_up_mutation) | guest |
 | Trips — find by confirmation # | `/trips` (signed-out) | [`RESERVATION_BY_CONFIRMATION_QUERY`](#reservation_by_confirmation_query) | reservations · property |
 | My Trips | `/trips` (signed-in) | [`MY_RESERVATIONS_QUERY`](#my_reservations_query) | reservations · property |
+| Trip detail | `/trips/[id]` | [`RESERVATION_DETAIL_QUERY`](#reservation_detail_query) | reservations · property |
+| Mobile check-in | `/trips/[id]` | [`MOBILE_CHECK_IN_MUTATION`](#mobile_check_in_mutation) | reservations |
+| Cancel reservation | `/trips/[id]` | [`CANCEL_RESERVATION_MUTATION`](#cancel_reservation_mutation) | reservations |
 | My profile (booking-page prefill) | `/hotels/[id]/book` (signed-in) | [`ME_PROFILE_QUERY`](#me_profile_query) | guest |
 | Account hub | `/account` | [`MY_ACCOUNT_QUERY`](#my_account_query) | guest · reservations |
 | Update profile (phone / DOB / nationality) | `/account` | [`UPDATE_GUEST_PROFILE_MUTATION`](#update_guest_profile_mutation) | guest |
@@ -1031,6 +1034,137 @@ data source clears the existing default before promoting the new one.
 ```graphql
 mutation SetDefaultPaymentMethod($id: ID!) {
   setDefaultPaymentMethod(id: $id) { id isDefault }
+}
+```
+
+---
+
+## `RESERVATION_DETAIL_QUERY`
+
+**Page:** `/trips/[id]` — fetched server-side via
+[`gqlFetchAuthed`](./src/lib/graphqlAuthed.ts) from
+[`app/trips/[id]/page.tsx`](./src/app/trips/[id]/page.tsx).
+
+**Functionality:** richer-than-list view of a single reservation that
+powers the trip detail page. Pulls everything the page renders in one
+round-trip: identity + status, hotel + room, full rate breakdown
+(line items, taxes, total), special requests, payment summary, the
+cancellation policy + record, the loyalty context, and — when the stay
+is `CHECKED_IN` — the digital key. Auth is gated server-side
+(`auth.requireAuth() + guestId match`); anonymous visitors get
+redirected to `/sign-in`.
+
+**Subgraphs touched:** `reservations`, `property` (hotel + room metadata
+via federation).
+
+```graphql
+query ReservationDetail($id: ID!) {
+  reservation(id: $id) {
+    id confirmationNumber status source createdAt
+    checkIn checkOut nights adults children
+    isRefundable canModify canCheckInOnline cancellationDeadline
+    hotel {
+      id name slug
+      location { address { line1 city state postalCode countryCode } }
+    }
+    roomType { id name }
+    room { number floor building category }
+    rateBreakdown {
+      currency
+      totalDue { amount currency }
+      roomSubtotal { amount currency }
+      taxesAndFees { total { amount currency } }
+      lineItems { id date description amount { amount currency } category quantity }
+    }
+    specialRequests { id category request status }
+    paymentSummary {
+      method lastFour brand chargedAt amount { amount currency } status
+    }
+    cancellationPolicy { type description deadlineHours }
+    cancellation {
+      cancelledAt reason refundAmount { amount currency } refundStatus
+    }
+    loyaltyContext {
+      memberNumber tier pointsEarned qualifyingNights
+    }
+    digitalKey {
+      reservationId keyCode status activatedAt expiresAt rooms
+    }
+  }
+}
+```
+
+---
+
+## `MOBILE_CHECK_IN_MUTATION`
+
+**Page:** `/trips/[id]` — fired by
+[`checkInAction`](./src/lib/tripActions.ts) when the Online check-in
+form is submitted (only rendered when the server says
+`canCheckInOnline: true`).
+
+**Functionality:** check the guest in remotely. Validates document
+type / number / optional ETA in the pure
+[`validateCheckIn`](./src/lib/trip.ts) helper before sending. On
+success, returns the updated reservation (now `CHECKED_IN`) plus the
+`DigitalKey` the page surfaces in its hero panel. Idempotency key is
+generated per-call via `crypto.randomUUID`.
+
+**Subgraphs touched:** `reservations`.
+
+```graphql
+mutation MobileCheckIn(
+  $reservationId: ID!,
+  $input: MobileCheckInInput!,
+  $idempotencyKey: UUID!
+) {
+  mobileCheckIn(
+    reservationId: $reservationId,
+    input: $input,
+    idempotencyKey: $idempotencyKey,
+  ) {
+    __typename
+    ... on MobileCheckInSuccess {
+      message
+      reservation { id status }
+      digitalKey { reservationId keyCode status activatedAt expiresAt rooms }
+    }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on NotFoundError { code message }
+  }
+}
+```
+
+---
+
+## `CANCEL_RESERVATION_MUTATION`
+
+**Page:** `/trips/[id]` — fired by
+[`cancelReservationAction`](./src/lib/tripActions.ts) when the Cancel
+reservation button is clicked (gated by `isRefundable` plus the status
+being in `{CONFIRMED, MODIFIED, PENDING_PAYMENT}`). The button form has
+a `window.confirm()` that explains whether the cancellation is free or
+fee-bearing before submit.
+
+**Subgraphs touched:** `reservations`.
+
+```graphql
+mutation CancelReservation(
+  $reservationId: ID!,
+  $input: CancelReservationInput,
+  $idempotencyKey: UUID!
+) {
+  cancelReservation(
+    reservationId: $reservationId,
+    input: $input,
+    idempotencyKey: $idempotencyKey,
+  ) {
+    __typename
+    ... on Reservation { id status }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on NotFoundError { code message }
+    ... on AuthorizationError { code message }
+  }
 }
 ```
 

@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 // name + selected rate via URL params.
 
 import Link from "next/link";
+import { formatPoints, pointsToCashUSD } from "@/lib/loyalty";
 
 export default function ConfirmationPage({
   params,
@@ -21,6 +22,7 @@ export default function ConfirmationPage({
   const ref = pick("ref") ?? "—";
   const firstName = pick("firstName") ?? "";
   const ratePlanCode = pick("ratePlanCode") ?? "";
+  const pointsRedeemed = Number(pick("points") ?? "0") || 0;
 
   return (
     <>
@@ -45,6 +47,17 @@ export default function ConfirmationPage({
           <p className="font-mono text-2xl tracking-wider">{ref}</p>
           {ratePlanCode && (
             <p className="text-xs text-ink/55 mt-2">Rate plan · {ratePlanCode}</p>
+          )}
+          {pointsRedeemed > 0 && (
+            <div className="mt-6 pt-5 border-t border-ink/10">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-goldDeep mb-1">
+                Luxe points redeemed
+              </div>
+              <p className="text-sm text-ink/85">
+                {formatPoints(pointsRedeemed)} applied · saved ≈ $
+                {pointsToCashUSD(pointsRedeemed).toFixed(2)} on this stay.
+              </p>
+            </div>
           )}
           <div className="mt-8 flex flex-col md:flex-row gap-3 justify-center">
             <Link

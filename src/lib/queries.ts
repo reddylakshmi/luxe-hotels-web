@@ -219,6 +219,17 @@ export const ME_PROFILE_QUERY = /* GraphQL */ `
   }
 `;
 
+// ── Loyalty balance (authed, used by the booking flow) ──────────────────
+
+export const MY_LOYALTY_BALANCE_QUERY = /* GraphQL */ `
+  query MyLoyaltyBalance {
+    myLoyaltyAccount {
+      loyaltyNumber
+      pointsBalance { available }
+    }
+  }
+`;
+
 // ── Loyalty hub (authed) ─────────────────────────────────────────────────
 
 export const MY_LOYALTY_QUERY = /* GraphQL */ `

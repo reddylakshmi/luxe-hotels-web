@@ -9,6 +9,10 @@ import {
   transactionLabel,
   tierProgressPctClamped,
   nightsToNextTierText,
+  pointsToCashUSD,
+  clampPointsRedemption,
+  USD_PER_POINT,
+  POINTS_REDEMPTION_STEP,
 } from "./loyalty";
 
 describe("LOYALTY_TIERS", () => {
@@ -112,6 +116,60 @@ describe("tierProgressPctClamped", () => {
   it("returns 0 for missing pct when next tier exists", () => {
     expect(tierProgressPctClamped(null, "PLATINUM")).toBe(0);
     expect(tierProgressPctClamped(NaN, "PLATINUM")).toBe(0);
+  });
+});
+
+describe("pointsToCashUSD", () => {
+  it("uses the standard $0.007/point rate by default", () => {
+    expect(pointsToCashUSD(1000)).toBe(7);
+    expect(pointsToCashUSD(50000)).toBe(350);
+  });
+  it("rounds to two decimal places", () => {
+    expect(pointsToCashUSD(143)).toBe(1.0); // 1.001 → 1
+    expect(pointsToCashUSD(157)).toBe(1.1); // 1.099 → 1.1
+  });
+  it("returns 0 for null / undefined / non-positive / NaN", () => {
+    expect(pointsToCashUSD(null)).toBe(0);
+    expect(pointsToCashUSD(undefined)).toBe(0);
+    expect(pointsToCashUSD(0)).toBe(0);
+    expect(pointsToCashUSD(-100)).toBe(0);
+    expect(pointsToCashUSD(NaN)).toBe(0);
+  });
+  it("respects a custom rate", () => {
+    expect(pointsToCashUSD(1000, 0.01)).toBe(10);
+  });
+});
+
+describe("clampPointsRedemption", () => {
+  it("snaps down to the 1,000-point step", () => {
+    expect(clampPointsRedemption(12_345, 100_000, 1_000)).toBe(12_000);
+    expect(clampPointsRedemption(999, 100_000, 1_000)).toBe(0);
+  });
+  it("caps at the available balance", () => {
+    expect(clampPointsRedemption(50_000, 25_500, 1_000)).toBe(25_000);
+  });
+  it("caps at what the booking total can absorb", () => {
+    // total $70 ÷ $0.007 = 10,000 points max
+    expect(clampPointsRedemption(50_000, 100_000, 70)).toBe(10_000);
+  });
+  it("returns 0 for non-positive / non-finite inputs", () => {
+    expect(clampPointsRedemption(0, 100_000, 1_000)).toBe(0);
+    expect(clampPointsRedemption(-5, 100_000, 1_000)).toBe(0);
+    expect(clampPointsRedemption(NaN, 100_000, 1_000)).toBe(0);
+    expect(clampPointsRedemption(50_000, 0, 1_000)).toBe(0);
+    expect(clampPointsRedemption(50_000, 100_000, 0)).toBe(0);
+  });
+  it("respects a custom rate-per-point", () => {
+    // total $100 ÷ $0.01 = 10,000 max at the higher rate
+    expect(clampPointsRedemption(50_000, 100_000, 100, 0.01)).toBe(10_000);
+  });
+});
+
+describe("USD_PER_POINT + POINTS_REDEMPTION_STEP", () => {
+  it("are sane constants", () => {
+    expect(USD_PER_POINT).toBeGreaterThan(0);
+    expect(USD_PER_POINT).toBeLessThan(0.05); // sanity
+    expect(POINTS_REDEMPTION_STEP).toBe(1000);
   });
 });
 

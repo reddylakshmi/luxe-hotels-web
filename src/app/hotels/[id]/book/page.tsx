@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
 import { gqlFetchAuthed } from "@/lib/graphqlAuthed";
-import { ME_PROFILE_QUERY, RATES_QUERY } from "@/lib/queries";
+import { ME_PROFILE_QUERY, MY_LOYALTY_BALANCE_QUERY, RATES_QUERY } from "@/lib/queries";
 import type {
   GuestProfile,
   HotelRates,
@@ -74,7 +74,7 @@ export default async function BookPage({
   // parallel — covers name, email, phone, member#, addresses, and payment
   // methods so the booking form lands fully pre-filled.
   const session = getSession();
-  const [data, profileData] = await Promise.all([
+  const [data, profileData, loyaltyData] = await Promise.all([
     gqlFetch<Resp>(RATES_QUERY, {
       id: params.id,
       checkIn: stay.checkIn,
@@ -94,8 +94,26 @@ export default async function BookPage({
           },
         )
       : Promise.resolve(null),
+    session
+      ? gqlFetchAuthed<{
+          myLoyaltyAccount: {
+            loyaltyNumber: string;
+            pointsBalance: { available: number };
+          } | null;
+        }>(MY_LOYALTY_BALANCE_QUERY).catch((err) => {
+          // The guest may not be enrolled — log + fall through silently.
+          console.error("[book] MY_LOYALTY_BALANCE_QUERY failed", err);
+          return null;
+        })
+      : Promise.resolve(null),
   ]);
   const profile = profileData?.me ?? null;
+  const loyalty = loyaltyData?.myLoyaltyAccount
+    ? {
+        loyaltyNumber: loyaltyData.myLoyaltyAccount.loyaltyNumber,
+        available: loyaltyData.myLoyaltyAccount.pointsBalance.available,
+      }
+    : null;
 
   const hotel = data?.hotel;
   if (!hotel || !hotel.availability) {
@@ -188,6 +206,9 @@ export default async function BookPage({
               savedPaymentMethods={
                 profile?.paymentMethods?.edges?.map((e) => e.node) ?? []
               }
+              loyalty={loyalty}
+              bookingTotalUSD={charges.total}
+              bookingCurrency={currency}
             />
           </div>
           <BookingSummarySidebar

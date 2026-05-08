@@ -127,6 +127,50 @@ export function tierProgressPctClamped(
   return Math.max(0, Math.min(100, pct));
 }
 
+// ── Points redemption (booking flow) ────────────────────────────────────
+
+/** Industry-standard rate-per-point used for the demo conversion. Real
+ *  conversion comes from the schema's pointsValuation query — this is
+ *  the client-side preview while the slider moves. */
+export const USD_PER_POINT = 0.007;
+
+/** Slider step + minimum redemption increment. Most loyalty programs
+ *  redeem in 1,000-point chunks; we follow that convention so the
+ *  cash-equivalent always lands on a clean dollar amount. */
+export const POINTS_REDEMPTION_STEP = 1000;
+
+/** Convert points to USD at the standard demo rate. Returns 0 for
+ *  non-positive / non-finite input. */
+export function pointsToCashUSD(
+  points: number | null | undefined,
+  ratePerPoint: number = USD_PER_POINT,
+): number {
+  if (points == null || !Number.isFinite(points) || points <= 0) return 0;
+  return Math.round(points * ratePerPoint * 100) / 100;
+}
+
+/**
+ * Clamp a requested redemption to the bounds available to the guest:
+ *   • not below 0
+ *   • not above their available balance
+ *   • not above what the booking total can absorb (no over-redemption)
+ *   • snapped down to the nearest POINTS_REDEMPTION_STEP
+ */
+export function clampPointsRedemption(
+  requested: number,
+  availableBalance: number,
+  bookingTotalUSD: number,
+  ratePerPoint: number = USD_PER_POINT,
+): number {
+  if (!Number.isFinite(requested) || requested <= 0) return 0;
+  if (!Number.isFinite(availableBalance) || availableBalance <= 0) return 0;
+  if (!Number.isFinite(bookingTotalUSD) || bookingTotalUSD <= 0) return 0;
+  const maxAffordable = Math.floor(bookingTotalUSD / ratePerPoint);
+  const ceiling = Math.min(availableBalance, maxAffordable);
+  const clamped = Math.min(requested, ceiling);
+  return Math.floor(clamped / POINTS_REDEMPTION_STEP) * POINTS_REDEMPTION_STEP;
+}
+
 /**
  * "22 nights to Platinum" — null when there's no next tier (top of the
  * ladder) or when the server didn't supply a count. UI callers should

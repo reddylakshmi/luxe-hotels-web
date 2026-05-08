@@ -28,6 +28,8 @@ import {
   type PaymentInformation,
 } from "@/lib/bookingValidation";
 import { CvvHelper } from "./CvvHelper";
+import { BookingPointsPanel } from "./BookingPointsPanel";
+import { clampPointsRedemption } from "@/lib/loyalty";
 import {
   defaultAddressId,
   defaultPaymentMethodId,
@@ -99,6 +101,9 @@ export function BookingForm({
   signedInLabel,
   savedAddresses = [],
   savedPaymentMethods = [],
+  loyalty = null,
+  bookingTotalUSD = 0,
+  bookingCurrency = "USD",
 }: {
   bookingHref: string;
   hotelId: string;
@@ -113,6 +118,15 @@ export function BookingForm({
   savedAddresses?: SavedAddress[];
   /** Saved payment methods on the guest's profile — drives the card picker. */
   savedPaymentMethods?: SavedPaymentMethod[];
+  /** Loyalty snapshot enabling the "Redeem points" panel. Null when the
+   *  guest isn't enrolled or when the panel shouldn't render. */
+  loyalty?: { loyaltyNumber: string; available: number } | null;
+  /** Booking total expressed in USD (or near-USD equivalent) for the
+   *  redemption cap. The panel uses this to refuse over-redemption. */
+  bookingTotalUSD?: number;
+  /** Native currency the booking is charged in — drives the disclaimer
+   *  on the points-redemption preview when it isn't USD. */
+  bookingCurrency?: string;
 }) {
   const router = useRouter();
   // Build a returnTo for the "Sign in for faster booking" link so the
@@ -161,6 +175,14 @@ export function BookingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAddressId]);
   const [submitting, setSubmitting] = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  // Re-clamp whenever the underlying loyalty / booking total moves so a
+  // stale higher value can't survive a price refresh.
+  useEffect(() => {
+    if (!loyalty) return;
+    const clamped = clampPointsRedemption(pointsToRedeem, loyalty.available, bookingTotalUSD);
+    if (clamped !== pointsToRedeem) setPointsToRedeem(clamped);
+  }, [loyalty, bookingTotalUSD, pointsToRedeem]);
 
   const setGuest = (field: keyof GuestInformation, value: string) =>
     dispatch({ type: "guest", field, value });
@@ -211,6 +233,7 @@ export function BookingForm({
       lastName: state.guest.lastName,
       email: state.guest.email,
     });
+    if (pointsToRedeem > 0) params.set("points", String(pointsToRedeem));
     router.push(`/hotels/${hotelId}/book/confirmation?${params.toString()}`);
   }
 
@@ -455,6 +478,17 @@ export function BookingForm({
           )}
         </Grid>
       </Section>
+
+      {/* ── Loyalty points redemption ─────────────────────────────── */}
+      {loyalty && loyalty.available > 0 && bookingTotalUSD > 0 && (
+        <BookingPointsPanel
+          available={loyalty.available}
+          totalUSD={bookingTotalUSD}
+          bookingCurrency={bookingCurrency}
+          pointsToRedeem={pointsToRedeem}
+          onChange={setPointsToRedeem}
+        />
+      )}
 
       {/* ── Payment information ──────────────────────────────────── */}
       <Section

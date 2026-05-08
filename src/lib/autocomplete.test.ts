@@ -17,23 +17,30 @@ const country = (label: string): DestinationSuggestion => ({
   type: "COUNTRY", label, sublabel: "5 hotels", country: label, countryCode: "FR",
 });
 
+const state = (label: string, country = "India"): DestinationSuggestion => ({
+  type: "STATE", label, sublabel: `${country} · 3 hotels`,
+  state: label, country, countryCode: "IN",
+});
+
 const hotel = (label: string, id = "prop-x"): DestinationSuggestion => ({
   type: "HOTEL", label, sublabel: "5 Avenue Montaigne, Paris, France",
   hotelId: id, hotelSlug: "x", city: "Paris", country: "France", countryCode: "FR",
 });
 
 describe("groupSuggestions", () => {
-  it("groups items by type in canonical order (CITY, COUNTRY, HOTEL)", () => {
+  it("groups items by type in canonical order (CITY, STATE, COUNTRY, HOTEL)", () => {
     const out = groupSuggestions([
       hotel("The Grand Palais Paris"),
       country("France"),
+      state("Telangana"),
       city("Paris"),
     ]);
-    expect(out.map((g) => g.type)).toEqual(["CITY", "COUNTRY", "HOTEL"]);
+    expect(out.map((g) => g.type)).toEqual(["CITY", "STATE", "COUNTRY", "HOTEL"]);
   });
 
   it("skips empty groups", () => {
     expect(groupSuggestions([city("Paris")]).map((g) => g.type)).toEqual(["CITY"]);
+    expect(groupSuggestions([state("Tamil Nadu")]).map((g) => g.type)).toEqual(["STATE"]);
     expect(groupSuggestions([])).toEqual([]);
   });
 
@@ -43,18 +50,22 @@ describe("groupSuggestions", () => {
   });
 
   it("uses human-readable headings", () => {
-    const out = groupSuggestions([city("Paris"), country("France"), hotel("X")]);
-    expect(out.map((g) => g.heading)).toEqual(["Cities", "Countries", "Hotels"]);
+    const out = groupSuggestions([
+      city("Paris"), state("Telangana"), country("France"), hotel("X"),
+    ]);
+    expect(out.map((g) => g.heading)).toEqual([
+      "Cities", "States / Regions", "Countries", "Hotels",
+    ]);
   });
 });
 
 describe("flattenGroups", () => {
-  it("returns items in display order across groups", () => {
+  it("returns items in display order across groups (CITY → STATE → COUNTRY → HOTEL)", () => {
     const groups = groupSuggestions([
-      hotel("H1"), country("France"), city("Paris"), hotel("H2"),
+      hotel("H1"), country("France"), state("Telangana"), city("Paris"), hotel("H2"),
     ]);
     expect(flattenGroups(groups).map((i) => i.label)).toEqual([
-      "Paris", "France", "H1", "H2",
+      "Paris", "Telangana", "France", "H1", "H2",
     ]);
   });
 });
@@ -90,6 +101,10 @@ describe("destinationFor", () => {
     expect(destinationFor(country("France"))).toEqual({ text: "France" });
   });
 
+  it("returns the state name for a STATE suggestion", () => {
+    expect(destinationFor(state("Tamil Nadu"))).toEqual({ text: "Tamil Nadu" });
+  });
+
   it("returns the hotel name and id for a HOTEL suggestion", () => {
     expect(destinationFor(hotel("The Grand Palais Paris", "prop-paris-001"))).toEqual({
       text: "The Grand Palais Paris",
@@ -104,10 +119,14 @@ describe("destinationFor", () => {
 });
 
 describe("SUGGESTION_GROUP_ORDER constant", () => {
-  it("lists exactly the three suggestion types", () => {
-    expect(SUGGESTION_GROUP_ORDER).toHaveLength(3);
+  it("lists exactly the four suggestion types", () => {
+    expect(SUGGESTION_GROUP_ORDER).toHaveLength(4);
     expect(new Set(SUGGESTION_GROUP_ORDER)).toEqual(
-      new Set(["CITY", "COUNTRY", "HOTEL"]),
+      new Set(["CITY", "STATE", "COUNTRY", "HOTEL"]),
     );
+  });
+
+  it("orders broad-but-specific intent first (city > state > country > hotel)", () => {
+    expect(SUGGESTION_GROUP_ORDER).toEqual(["CITY", "STATE", "COUNTRY", "HOTEL"]);
   });
 });

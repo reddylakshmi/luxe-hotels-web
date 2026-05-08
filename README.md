@@ -37,9 +37,12 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
 
 - **Destination autocomplete.** Typeahead on the search bar (debounced 200ms,
   min 2 chars). Hits the property subgraph's `destinationSuggestions` query
-  and groups results into Cities → Countries → Hotels. Picking a hotel
-  jumps straight to its rate page; picking a city/country pre-fills the
-  destination input.
+  and groups results into **Cities → States/Regions → Countries → Hotels**
+  (broad-but-specific intent first). Picking a hotel jumps straight to its
+  rate page; picking a city / state / country pre-fills the destination
+  input. The `/search` filter mirrors the same matching domain on the
+  server side, so submitting "France", "Telangana", or "FR" all surface
+  the right hotels.
 - **End-to-end booking flow.** Search → rate-list → guest+payment form →
   confirmation. Validation lives in `lib/bookingValidation.ts` (pure, 77
   tests) so card number / zip / phone / state rules can be reused.
@@ -83,24 +86,27 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 ## Testing
 
 ```bash
-npm test           # full vitest suite (252 tests, ~0.5s)
+npm test           # full vitest suite (261 tests, ~0.5s)
 npm run test:watch # watch mode
 ```
 
 | Module | Tests | What it covers |
 |---|---|---|
 | `lib/bookingValidation.test.ts` | 77 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
-| `lib/autocomplete.test.ts` | 15 | Group ordering, flatten, keyboard wraparound, hotel/city/country routing |
+| `lib/autocomplete.test.ts` | 17 | Group ordering (city → state → country → hotel), flatten, keyboard wraparound, hotel/city/state/country routing |
 | `lib/countries.test.ts` | ~20 | 53-country invariants, ISO codes, phone codes, zip-pattern correctness |
 | `lib/states.test.ts` | ~12 | Per-country counts (US 51, CA 13, IN 36, AU 8, MX 32, BR 27), case-insensitivity |
 | `lib/searchParams.test.ts` | 6 | First-of-array semantics, curried `picker()` |
 | `lib/money.test.ts` | 7 | `parseMoneyAmount`, `formatMoney`, `formatAmount` edge cases |
+| `lib/image.test.ts` | 7 | Placeholder-host detection, deterministic seed, real-URL passthrough |
 | `lib/guests.test.ts` | 29 | Room/adult/child arithmetic, child-age serialisation |
 | `lib/stay.test.ts` | 18 | `resolveStay` defaulting from any partial input |
 | `lib/dateRange.test.ts` | ~15 | Date-range picker math (range building, day picking) |
 | `lib/popover.test.ts` | 9 | Pure positioning math used by the portal-mounted popover |
 | `lib/search.test.ts` | 13 | URL ↔ filter state round-trip |
 | `components/FilterBar.test.ts` | 15 | Hidden-input carry-forward across pills |
+
+Every file under `src/lib/` has a test counterpart.
 
 ## File map
 

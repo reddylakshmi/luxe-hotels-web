@@ -189,6 +189,7 @@ export const DESTINATION_SUGGESTIONS_QUERY = /* GraphQL */ `
       hotelId
       hotelSlug
       city
+      state
       country
       countryCode
     }

@@ -7,13 +7,17 @@
 import type { DestinationSuggestion } from "@/types/graphql";
 
 /**
- * Group ordering for the dropdown — cities at the top because they're the
- * broadest match the user is most likely after, then countries, then
- * specific hotels. Mirrors the ranking the backend already applies, but
- * we re-group on the client too so the UI stays correct even if the
- * backend changes its sort order.
+ * Group ordering for the dropdown:
+ *   Cities    — most-specific intent users typically have ("Paris")
+ *   States    — regional intent ("Telangana", "California")
+ *   Countries — broadest fallback
+ *   Hotels    — specific by name
+ *
+ * Mirrors the ranking the backend already applies, but we re-group on the
+ * client too so the UI stays correct even if the backend changes its sort
+ * order.
  */
-export const SUGGESTION_GROUP_ORDER = ["CITY", "COUNTRY", "HOTEL"] as const;
+export const SUGGESTION_GROUP_ORDER = ["CITY", "STATE", "COUNTRY", "HOTEL"] as const;
 
 export type SuggestionGroup = {
   type: (typeof SUGGESTION_GROUP_ORDER)[number];
@@ -23,6 +27,7 @@ export type SuggestionGroup = {
 
 const HEADINGS: Record<(typeof SUGGESTION_GROUP_ORDER)[number], string> = {
   CITY: "Cities",
+  STATE: "States / Regions",
   COUNTRY: "Countries",
   HOTEL: "Hotels",
 };
@@ -84,6 +89,9 @@ export function destinationFor(suggestion: DestinationSuggestion): {
   }
   if (suggestion.type === "CITY") {
     return { text: suggestion.city ?? suggestion.label };
+  }
+  if (suggestion.type === "STATE") {
+    return { text: suggestion.state ?? suggestion.label };
   }
   return { text: suggestion.country ?? suggestion.label };
 }

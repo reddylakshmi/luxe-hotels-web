@@ -158,7 +158,7 @@ export type BrandStory = {
 
 // ── Destination autocomplete ─────────────────────────────────────────────────
 
-export type DestinationSuggestionType = "HOTEL" | "CITY" | "COUNTRY";
+export type DestinationSuggestionType = "HOTEL" | "CITY" | "STATE" | "COUNTRY";
 
 export type DestinationSuggestion = {
   type: DestinationSuggestionType;
@@ -167,6 +167,7 @@ export type DestinationSuggestion = {
   hotelId?: string | null;
   hotelSlug?: string | null;
   city?: string | null;
+  state?: string | null;
   country?: string | null;
   countryCode?: string | null;
 };

@@ -212,7 +212,8 @@ query HotelsList($filter: HotelFilter, $first: Int) {
 on every keystroke (debounced 200ms, min 2 chars).
 
 **Functionality:** typeahead for the destination input. Returns a ranked
-mix of cities, countries, and hotels matching the partial query. Used on:
+mix of cities, states/regions, countries, and hotels matching the partial
+query. Used on:
 
 - the hero / refinement search bar (home, brand pages, `/search`)
 - the inline filter on `/hotels` (Hotels & Destinations)
@@ -226,12 +227,13 @@ mix of cities, countries, and hotels matching the partial query. Used on:
 ```graphql
 query DestinationSuggestions($query: String!, $limit: Int) {
   destinationSuggestions(query: $query, limit: $limit) {
-    type            # CITY | COUNTRY | HOTEL — drives the row's icon + click action
-    label           # bold display text ("Paris", "France", "The Grand Palais Paris")
-    sublabel        # secondary line ("France · 5 hotels", "5 Avenue Montaigne, …")
+    type            # CITY | STATE | COUNTRY | HOTEL — drives the row's icon + click action
+    label           # bold display text ("Paris", "Telangana", "France", "The Grand Palais Paris")
+    sublabel        # secondary line ("India · 3 hotels", "5 Avenue Montaigne, …")
     hotelId         # set when type == HOTEL — for direct nav to /hotels/{id}/rates
     hotelSlug
     city            # set when type == CITY — for filter pre-fill
+    state           # set when type == STATE — pre-fills the input with the state name
     country         # set when type == COUNTRY
     countryCode
   }
@@ -239,8 +241,16 @@ query DestinationSuggestions($query: String!, $limit: Int) {
 ```
 
 **Ranking semantics:** the property subgraph applies prefix-then-substring
-matching, broad-first within each tier — cities > countries > hotels.
-Client-side, the dropdown groups results by `type` in the same order.
+matching, broad-first within each tier:
+
+  CITY → STATE → COUNTRY → HOTEL
+
+Within each tier, prefix matches always rank above substring matches.
+Client-side, the dropdown re-groups by `type` in the same order so the UI
+stays correct even if the backend sort changes. The corresponding
+`hotels(filter: { query: ... })` server-side filter mirrors the same
+matching domain — name, city, state, country name (substring), and
+country code (exact).
 
 ---
 

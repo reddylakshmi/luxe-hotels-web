@@ -23,6 +23,7 @@ Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federa
 | `/hotels/[id]/book/confirmation` | Booking confirmation with reference number | property |
 | `/sign-in` | Member sign-in form (email + password) | guest |
 | `/sign-up` | Create-account form (free tier, member rates, points) | guest |
+| `/account` | Signed-in account hub — profile · addresses · payment methods · recent trips, all editable inline (sticky-sidebar layout, Server Actions back add/edit/remove + set-primary/default flows) | guest · reservations |
 | `/trips` | Signed-in: list of `myReservations`. Signed-out: public confirmation-number lookup. | reservations · property |
 | `/stories` | Article list with category filter | content |
 | `/stories/[slug]` | Article detail with author, tags, related hotels | content, property |
@@ -35,6 +36,11 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
 > **GraphQL queries reference:** [`GRAPHQL.md`](./GRAPHQL.md) lists every
 > operation the web app sends, what page it powers, and which subgraphs it
 > touches. Read this if you want to learn how the data is composed.
+>
+> **Visual walk-through:** [`docs/screenshots/`](./docs/screenshots/) has
+> captioned 1280px captures of the signed-in account flow (sign-in →
+> trips → account display → profile/address/payment edit modes →
+> add / edit / remove round-trips through the federated stack).
 
 ## Notable features
 
@@ -106,17 +112,18 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 - **No Apollo Client on the client.** All pages are server components. Caching and revalidation are handled by Next's `fetch` (`revalidate: 30`). If a future page needs interactive client-side queries, add Apollo Client locally in that route — don't make it a dependency for the whole app.
 - **Type safety.** `src/types/graphql.ts` is hand-written to match the queries in `src/lib/queries.ts`. When the schema changes, update both files. (Future improvement: add `graphql-codegen` to generate types from a downloaded supergraph SDL.)
 - **Locale.** All queries pass `locale: "en"`. The GraphQL layer handles fallback when a translation is missing — nothing in this app does.
-- **Auth.** Sign-in flows are stubbed in the header/footer but not wired. The next step is to add a `/account` route that mutates against the guest subgraph's `signIn`, stores the JWT, and forwards it on member-gated queries.
+- **Account hub.** `/account` is one federated `MyAccount` query (guest + reservations subgraphs in one round-trip) feeding four sticky-sidebar sections: Profile, Addresses, Payment methods, Recent trips. Profile edits, address add / edit / remove / set-primary, and payment add / remove / set-default each post to a Server Action that calls the matching mutation and runs `revalidatePath('/account')`. Validation is pure (`lib/account.ts` — phone, ISO date, country code, address shape, card-expiry math) so vitest covers every branch. The header's "Hi, {firstName}" greeting links here.
 
 ## Testing
 
 ```bash
-npm test           # full vitest suite (336 tests, ~0.5s)
+npm test           # full vitest suite (411 tests, <1s)
 npm run test:watch # watch mode
 ```
 
 | Module | Tests | What it covers |
 |---|---|---|
+| `lib/account.test.ts` | 54 | Member-since formatter (UTC-stable), card-expiry math, primary-first sort, optional phone, DOB age window, country code, address-form composite |
 | `lib/bookingValidation.test.ts` | 77 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
 | `lib/autocomplete.test.ts` | 17 | Group ordering (city → state → country → hotel), flatten, keyboard wraparound, hotel/city/state/country routing |
 | `lib/countries.test.ts` | ~20 | 53-country invariants, ISO codes, phone codes, zip-pattern correctness |
@@ -164,6 +171,7 @@ src/
 │   │   ├── layout.tsx                   editorial split, redirects if authed
 │   │   ├── sign-in/page.tsx             Sign-in form (SIGN_IN_MUTATION)
 │   │   └── sign-up/page.tsx             Create-account form (SIGN_UP_MUTATION)
+│   ├── account/page.tsx                 Account hub (MY_ACCOUNT_QUERY)
 │   └── trips/page.tsx                   My Trips list / find-by-confirmation
 ├── components/
 │   ├── Header.tsx · Footer.tsx · Hero.tsx
@@ -189,11 +197,16 @@ src/
 │   ├── HotelTabs.tsx                    ARIA tab swap on /hotels/[id]
 │   ├── SignInForm.tsx · SignUpForm.tsx  auth forms (useFormState)
 │   ├── SignInOrJoin.tsx                 header dropdown for auth state
+│   ├── AccountSidebar.tsx               sticky in-page nav for /account
+│   ├── AccountSections.tsx              shared Section/Field/EmptyState shell + read-only Trips
+│   ├── ProfileEditor.tsx                Profile edit toggle (phone / DOB / nationality)
+│   ├── AddressesManager.tsx             Addresses add/edit/remove/set-primary
+│   ├── PaymentsManager.tsx              Payment-method add/remove/set-default
 │   ├── TripCard.tsx                     reservation card (shared list/lookup)
 │   └── FindReservationForm.tsx          public confirmation-number lookup
 ├── lib/
 │   ├── graphql.ts                       gqlFetch helper
-│   ├── queries.ts                       all GraphQL operations (16 ops total)
+│   ├── queries.ts                       all GraphQL operations (27 ops total)
 │   ├── graphqlAuthed.ts                 server-only authed gqlFetch wrapper
 │   ├── image.ts                         placeholder URL mapper
 │   ├── stay.ts                          stay-window resolver + formatter
@@ -213,6 +226,8 @@ src/
 │   ├── auth.ts                          pure validators + Session shape
 │   ├── authActions.ts                   server actions: sign in / up / out
 │   ├── authSession.ts                   httpOnly session-cookie read/write
+│   ├── account.ts                       pure helpers: member-since, card expiry, primary-first sort, address validators
+│   ├── accountActions.ts                server actions: profile + address + payment mutations
 │   └── tripsActions.ts                  server action: find by confirmation #
 └── types/graphql.ts                     hand-typed response shapes
 ```

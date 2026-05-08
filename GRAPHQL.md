@@ -32,7 +32,16 @@ top-level field.
 | Create account | `/sign-up` | [`SIGN_UP_MUTATION`](#sign_up_mutation) | guest |
 | Trips — find by confirmation # | `/trips` (signed-out) | [`RESERVATION_BY_CONFIRMATION_QUERY`](#reservation_by_confirmation_query) | reservations · property |
 | My Trips | `/trips` (signed-in) | [`MY_RESERVATIONS_QUERY`](#my_reservations_query) | reservations · property |
-| My profile (server-side prefill source) | booking page (signed-in) | [`ME_PROFILE_QUERY`](#me_profile_query) | guest |
+| My profile (booking-page prefill) | `/hotels/[id]/book` (signed-in) | [`ME_PROFILE_QUERY`](#me_profile_query) | guest |
+| Account hub | `/account` | [`MY_ACCOUNT_QUERY`](#my_account_query) | guest · reservations |
+| Update profile (phone / DOB / nationality) | `/account` | [`UPDATE_GUEST_PROFILE_MUTATION`](#update_guest_profile_mutation) | guest |
+| Add address | `/account` | [`ADD_ADDRESS_MUTATION`](#add_address_mutation) | guest |
+| Update address | `/account` | [`UPDATE_ADDRESS_MUTATION`](#update_address_mutation) | guest |
+| Remove address | `/account` | [`REMOVE_ADDRESS_MUTATION`](#remove_address_mutation) | guest |
+| Set primary address | `/account` | [`SET_PRIMARY_ADDRESS_MUTATION`](#set_primary_address_mutation) | guest |
+| Add payment method | `/account` | [`ADD_PAYMENT_METHOD_MUTATION`](#add_payment_method_mutation) | guest |
+| Remove payment method | `/account` | [`REMOVE_PAYMENT_METHOD_MUTATION`](#remove_payment_method_mutation) | guest |
+| Set default payment method | `/account` | [`SET_DEFAULT_PAYMENT_METHOD_MUTATION`](#set_default_payment_method_mutation) | guest |
 | Select a Room and Rate | `/hotels/[id]/rates` | [`RATES_QUERY`](#rates_query) | property · pricing |
 | Stories list + category filter | `/stories` | [`STORIES_LIST_QUERY`](#stories_list_query) | content |
 | Story detail | `/stories/[slug]` | [`STORY_DETAIL_QUERY`](#story_detail_query) | content · property |
@@ -778,14 +787,11 @@ query MyReservations($first: Int, $filter: ReservationFilter) {
 
 ## `ME_PROFILE_QUERY`
 
-**Page:** Reserved for server-side prefill on the Complete Your Booking
-page. **Currently NOT wired** — the booking page reads the basic guest
-identity (firstName / lastName / email) directly from the session
-cookie because the existing `DefaultAuthContextResolver` doesn't
-surface the HTTP request via the DGS context for federated authed
-queries (see `GuestAuthenticatedTest`'s `@TestConfiguration` workaround).
-Kept in the registry so the day that's fixed, the booking page can
-add `phone`, `loyaltyNumber`, and the primary address to the prefill.
+**Page:** `/hotels/[id]/book` — fetched server-side via
+[`gqlFetchAuthed`](./src/lib/graphqlAuthed.ts) to prefill the Complete
+Your Booking form with the guest's saved phone, addresses, and payment
+methods. The booking form falls through to the session cookie's basic
+identity (firstName / lastName / email) when the query fails.
 
 **Subgraphs touched:** `guest`.
 
@@ -800,7 +806,231 @@ query Me {
     addresses {
       id type line1 line2 city stateCode postalCode countryCode isPrimary
     }
+    paymentMethods(first: 10) {
+      edges {
+        node { id type brand lastFour holderName expiryMonth expiryYear isDefault }
+      }
+    }
   }
+}
+```
+
+---
+
+## `MY_ACCOUNT_QUERY`
+
+**Page:** `/account` — single federated round-trip that powers all four
+sections of the account hub (profile · addresses · payment · recent
+trips). One query is cheaper than four, and Next's `revalidatePath` lets
+each mutation refresh the whole page in one re-render.
+
+**Subgraphs touched:** `guest`, `reservations`.
+
+```graphql
+query MyAccount($recentTripsLimit: Int) {
+  me {
+    id email phone dateOfBirth nationality
+    languagePreference currencyPreference memberSince
+    name { firstName lastName title }
+    externalIds { loyaltyNumber }
+    addresses {
+      id type line1 line2 city stateCode postalCode countryCode isPrimary
+    }
+    paymentMethods(first: 10) {
+      edges {
+        node { id type brand lastFour holderName expiryMonth expiryYear isDefault }
+      }
+    }
+    savedHotels(first: 5)    { edges { node { id hotelId savedAt } } }
+    travelCompanions {
+      id relationship dateOfBirth
+      name { firstName lastName title }
+    }
+  }
+  myReservations(first: $recentTripsLimit) {
+    totalCount
+    edges {
+      node {
+        id confirmationNumber status checkIn checkOut nights
+        hotel { id name location { address { city countryCode } } }
+        roomType { id name }
+        rateBreakdown { currency totalDue { amount currency } }
+      }
+    }
+  }
+}
+```
+
+---
+
+## `UPDATE_GUEST_PROFILE_MUTATION`
+
+**Page:** `/account` — fired by [`updateProfileAction`](./src/lib/accountActions.ts)
+when the Profile section's Edit form is saved.
+
+**Functionality:** patches `phone`, `dateOfBirth`, `nationality` on the
+signed-in guest. Only those three fields are exposed by the schema — name
++ email + locale prefs are intentionally read-only. The data source
+applies a partial update (keys missing from `input` are preserved) and
+stamps `updatedAt`.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation UpdateGuestProfile($input: UpdateGuestProfileInput!) {
+  updateGuestProfile(input: $input) {
+    __typename
+    ... on GuestProfile { id phone dateOfBirth nationality }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on AuthorizationError { code message }
+  }
+}
+```
+
+---
+
+## `ADD_ADDRESS_MUTATION`
+
+**Page:** `/account` — fired by [`addAddressAction`](./src/lib/accountActions.ts)
+when the Addresses section's "+ Add an address" form is submitted.
+
+**Functionality:** appends a new address to the guest's list. If the
+guest had no addresses, the new one is auto-promoted to primary; if
+`isPrimary: true` is passed explicitly, the existing primary is demoted
+so exactly one stays flagged.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation AddAddress($input: AddAddressInput!) {
+  addAddress(input: $input) {
+    __typename
+    ... on GuestAddress {
+      id type line1 line2 city stateCode postalCode countryCode isPrimary
+    }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on AuthorizationError { code message }
+  }
+}
+```
+
+---
+
+## `UPDATE_ADDRESS_MUTATION`
+
+**Page:** `/account` — fired by [`updateAddressAction`](./src/lib/accountActions.ts)
+when an address row's inline edit form is submitted.
+
+**Functionality:** partial update keyed by address `id`. Keys absent
+from `input` keep their existing value (so the form can send only what
+changed). Promoting to primary in the same call demotes the previous
+primary; demoting a primary leaves the list with one fewer primary,
+which the UI never reaches because the checkbox for the current primary
+is disabled.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation UpdateAddress($id: ID!, $input: UpdateAddressInput!) {
+  updateAddress(id: $id, input: $input) {
+    __typename
+    ... on GuestAddress {
+      id type line1 line2 city stateCode postalCode countryCode isPrimary
+    }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on NotFoundError { code message }
+    ... on AuthorizationError { code message }
+  }
+}
+```
+
+---
+
+## `REMOVE_ADDRESS_MUTATION`
+
+**Page:** `/account` — fired by [`removeAddressAction`](./src/lib/accountActions.ts).
+
+**Functionality:** drops the address by id. If the removed address was
+the primary and at least one address remains, the data source promotes
+the new first entry to primary so the invariant "exactly one primary
+when ≥1 address exists" holds.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation RemoveAddress($id: ID!) { removeAddress(id: $id) }
+```
+
+---
+
+## `SET_PRIMARY_ADDRESS_MUTATION`
+
+**Page:** `/account` — fired by [`setPrimaryAddressAction`](./src/lib/accountActions.ts).
+
+**Functionality:** demotes the existing primary and promotes the target
+address. No-op when the target is already primary.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation SetPrimaryAddress($id: ID!) {
+  setPrimaryAddress(id: $id) { id isPrimary }
+}
+```
+
+---
+
+## `ADD_PAYMENT_METHOD_MUTATION`
+
+**Page:** `/account` — fired by [`addPaymentAction`](./src/lib/accountActions.ts)
+when the Payment methods section's "+ Add a card" form is submitted.
+
+**Functionality:** appends a new card. The web form validates with the
+existing booking-flow helpers (Luhn check, brand detection, expiry
+month/year), derives `lastFour` and `brand` from the card number, and
+sends a stub `pspToken` (real PSP integration is a later step).
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation AddPaymentMethod($input: AddPaymentMethodInput!) {
+  addPaymentMethod(input: $input) {
+    __typename
+    ... on PaymentMethod {
+      id type brand lastFour holderName expiryMonth expiryYear isDefault
+    }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on AuthorizationError { code message }
+  }
+}
+```
+
+---
+
+## `REMOVE_PAYMENT_METHOD_MUTATION`
+
+**Page:** `/account` — fired by [`removePaymentAction`](./src/lib/accountActions.ts)
+when a card row's Remove button is clicked (after a `confirm()`).
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation RemovePaymentMethod($id: ID!) { removePaymentMethod(id: $id) }
+```
+
+---
+
+## `SET_DEFAULT_PAYMENT_METHOD_MUTATION`
+
+**Page:** `/account` — fired by [`setDefaultPaymentAction`](./src/lib/accountActions.ts)
+when a non-default card row's "Set as default" button is clicked. The
+data source clears the existing default before promoting the new one.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation SetDefaultPaymentMethod($id: ID!) {
+  setDefaultPaymentMethod(id: $id) { id isDefault }
 }
 ```
 

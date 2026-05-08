@@ -180,6 +180,27 @@ export const HOTEL_DETAIL_QUERY = /* GraphQL */ `
   }
 `;
 
+export const RECENTLY_VIEWED_QUERY = /* GraphQL */ `
+  query RecentlyViewed($ids: [ID!]!) {
+    hotels(first: 24, filter: { ids: $ids }) {
+      edges {
+        node {
+          id
+          name
+          slug
+          starRating
+          brand { id name tier accentColor }
+          location { address { city countryCode } }
+          guestRating { overall count }
+          media(first: 1, categories: [EXTERIOR]) {
+            edges { node { url altText } }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const DESTINATION_SUGGESTIONS_QUERY = /* GraphQL */ `
   query DestinationSuggestions($query: String!, $limit: Int) {
     destinationSuggestions(query: $query, limit: $limit) {

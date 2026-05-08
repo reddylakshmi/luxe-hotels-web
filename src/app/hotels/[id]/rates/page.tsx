@@ -11,6 +11,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { StayUpdateBar } from "@/components/StayUpdateBar";
 import { RoomRateCard } from "@/components/RoomRateCard";
 import { RatesSettingsBar } from "@/components/RatesSettingsBar";
+import { RecentlyViewedTracker } from "@/components/RecentlyViewedTracker";
 
 type Resp = { hotel: HotelRates };
 
@@ -72,6 +73,7 @@ export default async function RatesPage({
 
   return (
     <>
+      <RecentlyViewedTracker hotelId={params.id} />
       {/* ── Hotel header ─────────────────────────────────────────────── */}
       <section className="bg-ink text-cream">
         <div className="container-x py-10 md:py-14 flex items-center gap-5">

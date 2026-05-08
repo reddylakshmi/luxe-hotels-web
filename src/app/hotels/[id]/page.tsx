@@ -6,6 +6,7 @@ import { gqlFetch } from "@/lib/graphql";
 import { HOTEL_DETAIL_QUERY } from "@/lib/queries";
 import type { HotelDetail } from "@/types/graphql";
 import { imageUrl } from "@/lib/image";
+import { RecentlyViewedTracker } from "@/components/RecentlyViewedTracker";
 
 type Resp = { hotel: HotelDetail | null };
 
@@ -20,6 +21,7 @@ export default async function HotelDetailPage({ params }: { params: { id: string
 
   return (
           <>
+            <RecentlyViewedTracker hotelId={h.id} />
             {/* Hero */}
             <section className="relative h-[70vh] min-h-[500px] text-cream overflow-hidden">
               <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${heroUrl}')` }} />

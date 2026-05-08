@@ -9,6 +9,7 @@ import { HotelCard } from "@/components/HotelCard";
 import { StoryCard } from "@/components/StoryCard";
 import { InspirationCard } from "@/components/InspirationCard";
 import { DealCard } from "@/components/DealCard";
+import { RecentlyViewedSection } from "@/components/RecentlyViewedSection";
 
 export default async function HomePage() {
   let data: HomeData | null = null;
@@ -51,6 +52,9 @@ export default async function HomePage() {
                 ))}
               </div>
             </section>
+
+            {/* Recently Viewed Hotels (client-side; renders nothing on first visit) */}
+            <RecentlyViewedSection />
 
             {/* Brand story banner */}
             {data!.brandStory && (

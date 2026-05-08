@@ -239,6 +239,27 @@ export type HotelRates = {
   } | null;
 };
 
+// ── Guest profile (authed) ───────────────────────────────────────────────────
+
+export type GuestProfile = {
+  id: string;
+  email: string;
+  phone?: string | null;
+  name: { firstName: string; lastName: string };
+  externalIds?: { loyaltyNumber?: string | null } | null;
+  addresses: {
+    id: string;
+    type: string;
+    line1: string;
+    line2?: string | null;
+    city: string;
+    stateCode?: string | null;
+    postalCode?: string | null;
+    countryCode: string;
+    isPrimary: boolean;
+  }[];
+};
+
 // ── Trips / reservations ─────────────────────────────────────────────────────
 
 export type ReservationStatus =

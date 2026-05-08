@@ -20,6 +20,8 @@ import { fromSearchParams as guestsFrom } from "@/lib/guests";
 import { picker } from "@/lib/searchParams";
 import { parseMoneyAmount, formatAmount } from "@/lib/money";
 import { computeChargeSummary } from "@/lib/bookingValidation";
+import { getSession } from "@/lib/authSession";
+import type { GuestSummary } from "@/lib/auth";
 import { BrandLogo } from "@/components/BrandLogo";
 import { HoldTimer } from "@/components/HoldTimer";
 import { StatementCreditBanner } from "@/components/StatementCreditBanner";
@@ -45,6 +47,11 @@ export default async function BookPage({
   const rateToken = pick("rateToken") ?? "";
   const roomId = pick("roomId") ?? "";
 
+  // Read the signed-in guest from the session cookie. The JWT itself
+  // carries name + email so we don't have to round-trip the federated
+  // graph for the basics — the prefill applies before the rate fetch.
+  const session = getSession();
+
   let data: Resp | null = null;
   try {
     data = await gqlFetch<Resp>(RATES_QUERY, {
@@ -56,8 +63,6 @@ export default async function BookPage({
       currency,
     });
   } catch (err) {
-    // Surface the failure in server logs so missing rate data is debuggable —
-    // the user still sees a graceful NotFound below.
     console.error("[book] RATES_QUERY failed for hotel", params.id, err);
   }
 
@@ -140,6 +145,10 @@ export default async function BookPage({
               rateToken={rateToken}
               ratePlanCode={ratePlanCode}
               roomId={roomId}
+              prefillGuest={prefillFromSession(session?.guest)}
+              signedInLabel={
+                session ? `${session.guest.firstName} ${session.guest.lastName}` : undefined
+              }
             />
           </div>
           <BookingSummarySidebar
@@ -159,6 +168,24 @@ export default async function BookPage({
       </section>
     </>
   );
+}
+
+/**
+ * Map the signed-in guest's session snapshot onto the BookingForm's
+ * pre-fill shape. The JWT-backed cookie carries name + email, which
+ * covers the most-typed fields. Phone, member number, and address are
+ * left blank for the guest to fill — keeping them in the cookie would
+ * bloat it and they're rarely the same as the booking address anyway.
+ */
+function prefillFromSession(
+  guest: GuestSummary | undefined,
+): Partial<import("@/lib/bookingValidation").GuestInformation> | undefined {
+  if (!guest) return undefined;
+  return {
+    firstName: guest.firstName,
+    lastName: guest.lastName,
+    email: guest.email,
+  };
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

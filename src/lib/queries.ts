@@ -180,6 +180,31 @@ export const HOTEL_DETAIL_QUERY = /* GraphQL */ `
   }
 `;
 
+// ── Guest profile (authed) ───────────────────────────────────────────────
+
+export const ME_PROFILE_QUERY = /* GraphQL */ `
+  query Me {
+    me {
+      id
+      email
+      phone
+      name { firstName lastName }
+      externalIds { loyaltyNumber }
+      addresses {
+        id
+        type
+        line1
+        line2
+        city
+        stateCode
+        postalCode
+        countryCode
+        isPrimary
+      }
+    }
+  }
+`;
+
 // ── Trips / reservations ─────────────────────────────────────────────────
 
 export const MY_RESERVATIONS_QUERY = /* GraphQL */ `

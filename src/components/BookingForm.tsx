@@ -53,6 +53,15 @@ const blankPayment: PaymentInformation = {
   cardNumber: "", expiryMonth: "", expiryYear: "", cvv: "", billingZip: "",
 };
 
+/**
+ * Merge whatever pre-fill data the page passed in (signed-in guest's
+ * profile) on top of the blank shape. Missing fields fall through to the
+ * blank defaults so partial profiles never blow up the form.
+ */
+function buildInitialGuest(prefill?: Partial<GuestInformation>): GuestInformation {
+  return { ...blankGuest, ...(prefill ?? {}) };
+}
+
 function reducer(state: FormState, action: Action): FormState {
   switch (action.type) {
     case "guest":
@@ -74,16 +83,22 @@ export function BookingForm({
   rateToken,
   ratePlanCode,
   roomId,
+  prefillGuest,
+  signedInLabel,
 }: {
   bookingHref: string;
   hotelId: string;
   rateToken: string;
   ratePlanCode: string;
   roomId: string;
+  /** Pre-fill values seeded from the signed-in guest's profile. */
+  prefillGuest?: Partial<GuestInformation>;
+  /** Optional banner shown above the form when prefill came from a session. */
+  signedInLabel?: string;
 }) {
   const router = useRouter();
   const [state, dispatch] = useReducer(reducer, {
-    guest: blankGuest,
+    guest: buildInitialGuest(prefillGuest),
     payment: blankPayment,
     requests: "",
     ada: false,
@@ -140,14 +155,23 @@ export function BookingForm({
 
   return (
     <form onSubmit={onSubmit} noValidate>
-      {/* ── Sign-in shortcut ──────────────────────────────────────── */}
-      <a
-        id="sign-in"
-        href="#sign-in"
-        className="inline-block mb-6 text-sm text-goldDeep underline hover:no-underline"
-      >
-        Sign in for faster booking →
-      </a>
+      {/* ── Sign-in state ──────────────────────────────────────────── */}
+      {signedInLabel ? (
+        <div className="inline-flex items-center gap-2 mb-6 text-sm bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-2">
+          <span aria-hidden>✓</span>
+          <span>
+            Signed in as <strong className="font-medium">{signedInLabel}</strong> — your details are filled in below.
+          </span>
+        </div>
+      ) : (
+        <a
+          id="sign-in"
+          href="/sign-in"
+          className="inline-block mb-6 text-sm text-goldDeep underline hover:no-underline"
+        >
+          Sign in for faster booking →
+        </a>
+      )}
 
       {/* ── Guest information ────────────────────────────────────── */}
       <Section title="Guest Information" subtitle="All fields are required unless otherwise stated.">

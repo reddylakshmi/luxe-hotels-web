@@ -9,6 +9,11 @@ import {
   primaryAddress,
   defaultPaymentMethod,
   sortPrimaryFirst,
+  validateOptionalPhone,
+  validateDateOfBirth,
+  validateCountryCode,
+  validateProfileEdit,
+  parseExpiry,
 } from "./account";
 import type { GuestAddress, PaymentMethodSummary } from "@/types/graphql";
 
@@ -163,6 +168,103 @@ describe("defaultPaymentMethod", () => {
     const visa = pm({ id: "v", isDefault: false });
     const amex = pm({ id: "a", brand: "Amex", isDefault: false });
     expect(defaultPaymentMethod([visa, amex])?.id).toBe("v");
+  });
+});
+
+describe("validateOptionalPhone", () => {
+  it("is undefined for empty/whitespace input", () => {
+    expect(validateOptionalPhone(undefined)).toBeUndefined();
+    expect(validateOptionalPhone("")).toBeUndefined();
+    expect(validateOptionalPhone("   ")).toBeUndefined();
+  });
+  it("accepts common international shapes", () => {
+    expect(validateOptionalPhone("+1-415-555-0101")).toBeUndefined();
+    expect(validateOptionalPhone("(415) 555-0101")).toBeUndefined();
+    expect(validateOptionalPhone("+44 20 7946 0958")).toBeUndefined();
+  });
+  it("rejects garbage", () => {
+    expect(validateOptionalPhone("abc")).toBe("Enter a valid phone number");
+    expect(validateOptionalPhone("+1 (xy)")).toBe("Enter a valid phone number");
+  });
+  it("rejects too few digits", () => {
+    expect(validateOptionalPhone("12345")).toBe("Enter a valid phone number");
+  });
+});
+
+describe("validateDateOfBirth", () => {
+  const now = new Date("2026-05-08T12:00:00Z");
+  it("is undefined for empty input (optional)", () => {
+    expect(validateDateOfBirth(undefined, now)).toBeUndefined();
+    expect(validateDateOfBirth("", now)).toBeUndefined();
+  });
+  it("rejects non-ISO shape", () => {
+    expect(validateDateOfBirth("3/15/1985", now)).toMatch(/YYYY-MM-DD/);
+  });
+  it("accepts a sensible past date", () => {
+    expect(validateDateOfBirth("1985-03-15", now)).toBeUndefined();
+  });
+  it("rejects today and future", () => {
+    expect(validateDateOfBirth("2026-05-08", now)).toMatch(/past/);
+    expect(validateDateOfBirth("2030-01-01", now)).toMatch(/past/);
+  });
+  it("rejects > 120 years old", () => {
+    expect(validateDateOfBirth("1850-01-01", now)).toMatch(/valid/);
+  });
+});
+
+describe("validateCountryCode", () => {
+  it("is undefined for empty (optional)", () => {
+    expect(validateCountryCode(undefined)).toBeUndefined();
+    expect(validateCountryCode("")).toBeUndefined();
+  });
+  it("accepts two-letter codes case-insensitively", () => {
+    expect(validateCountryCode("US")).toBeUndefined();
+    expect(validateCountryCode("gb")).toBeUndefined();
+  });
+  it("rejects names and wrong lengths", () => {
+    expect(validateCountryCode("United States")).toMatch(/2-letter/);
+    expect(validateCountryCode("USA")).toMatch(/2-letter/);
+    expect(validateCountryCode("U")).toMatch(/2-letter/);
+  });
+});
+
+describe("validateProfileEdit", () => {
+  it("returns empty object when all fields valid/empty", () => {
+    expect(validateProfileEdit({})).toEqual({});
+    expect(validateProfileEdit({ phone: "+1-415-555-0101", nationality: "US" })).toEqual({});
+  });
+  it("collects every offending field", () => {
+    const errors = validateProfileEdit({
+      phone: "abc",
+      dateOfBirth: "tomorrow",
+      nationality: "USA",
+    });
+    expect(errors.phone).toMatch(/phone/);
+    expect(errors.dateOfBirth).toMatch(/YYYY-MM-DD/);
+    expect(errors.nationality).toMatch(/2-letter/);
+  });
+});
+
+describe("parseExpiry", () => {
+  it("returns null for missing/garbage input", () => {
+    expect(parseExpiry(undefined)).toBeNull();
+    expect(parseExpiry("")).toBeNull();
+    expect(parseExpiry("12-26")).toBeNull();
+    expect(parseExpiry("abc/26")).toBeNull();
+  });
+  it("parses MM/YY → 20YY", () => {
+    expect(parseExpiry("12/26")).toEqual({ month: 12, year: 2026 });
+    expect(parseExpiry("01/30")).toEqual({ month: 1, year: 2030 });
+  });
+  it("parses MM/YYYY", () => {
+    expect(parseExpiry("06/2027")).toEqual({ month: 6, year: 2027 });
+  });
+  it("rejects invalid month", () => {
+    expect(parseExpiry("13/26")).toBeNull();
+    expect(parseExpiry("00/26")).toBeNull();
+  });
+  it("tolerates whitespace around the slash", () => {
+    expect(parseExpiry("12 / 26")).toEqual({ month: 12, year: 2026 });
   });
 });
 

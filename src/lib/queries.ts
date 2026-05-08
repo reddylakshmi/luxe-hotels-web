@@ -271,6 +271,44 @@ export const MY_ACCOUNT_QUERY = /* GraphQL */ `
   }
 `;
 
+// ── Account mutations (authed) ──────────────────────────────────────────
+
+export const UPDATE_GUEST_PROFILE_MUTATION = /* GraphQL */ `
+  mutation UpdateGuestProfile($input: UpdateGuestProfileInput!) {
+    updateGuestProfile(input: $input) {
+      __typename
+      ... on GuestProfile { id phone dateOfBirth nationality }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on AuthorizationError { code message }
+    }
+  }
+`;
+
+export const ADD_PAYMENT_METHOD_MUTATION = /* GraphQL */ `
+  mutation AddPaymentMethod($input: AddPaymentMethodInput!) {
+    addPaymentMethod(input: $input) {
+      __typename
+      ... on PaymentMethod {
+        id type brand lastFour holderName expiryMonth expiryYear isDefault
+      }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on AuthorizationError { code message }
+    }
+  }
+`;
+
+export const REMOVE_PAYMENT_METHOD_MUTATION = /* GraphQL */ `
+  mutation RemovePaymentMethod($id: ID!) {
+    removePaymentMethod(id: $id)
+  }
+`;
+
+export const SET_DEFAULT_PAYMENT_METHOD_MUTATION = /* GraphQL */ `
+  mutation SetDefaultPaymentMethod($id: ID!) {
+    setDefaultPaymentMethod(id: $id) { id isDefault }
+  }
+`;
+
 // ── Trips / reservations ─────────────────────────────────────────────────
 
 export const MY_RESERVATIONS_QUERY = /* GraphQL */ `

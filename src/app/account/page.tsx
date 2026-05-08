@@ -17,12 +17,9 @@ import { getSession } from "@/lib/authSession";
 import type { GuestProfile, Reservation } from "@/types/graphql";
 import { formatMemberSince } from "@/lib/account";
 import { AccountSidebar } from "@/components/AccountSidebar";
-import {
-  AccountInfo,
-  AccountAddresses,
-  AccountPayments,
-  AccountTrips,
-} from "@/components/AccountSections";
+import { AccountAddresses, AccountTrips } from "@/components/AccountSections";
+import { ProfileEditor } from "@/components/ProfileEditor";
+import { PaymentsManager } from "@/components/PaymentsManager";
 
 type Resp = {
   me: GuestProfile | null;
@@ -76,19 +73,19 @@ export default async function AccountPage() {
         <AccountSidebar />
 
         <div className="flex flex-col gap-12 min-w-0 mt-8 md:mt-0">
-          <AccountInfo guest={guest} />
+          <ProfileEditor guest={guest} />
           <AccountAddresses addresses={guest.addresses} />
-          <AccountPayments
+          <PaymentsManager
             payments={guest.paymentMethods.edges.map((e) => e.node)}
           />
           <AccountTrips reservations={reservations} totalCount={total} />
 
           <p className="text-xs text-ink/45 mt-2">
-            Need to update something?{" "}
+            Need help with something we can&apos;t edit here?{" "}
             <Link href="/" className="underline hover:text-goldDeep">
               Contact your concierge
-            </Link>{" "}
-            — self-serve editing is coming soon.
+            </Link>
+            .
           </p>
         </div>
       </div>

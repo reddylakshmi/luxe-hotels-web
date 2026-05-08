@@ -1,29 +1,19 @@
-// Read-only display components for /account. Each section is a pure
-// server component that takes already-shaped data — keeps the page-level
-// orchestration simple and the sections individually swappable.
-//
-// Editing affordances are deliberately out of scope here; the schema's
-// updateGuestProfile / addPaymentMethod mutations exist for a follow-up.
+// Display-only sections + shared shell for /account. The editable
+// sections (Profile, Payment) live in their own client-component files
+// (ProfileEditor.tsx, PaymentsManager.tsx) and reuse the Section / Field
+// / EmptyState helpers exported here.
 
 import Link from "next/link";
-import type {
-  GuestAddress,
-  GuestProfile,
-  PaymentMethodSummary,
-  Reservation,
-} from "@/types/graphql";
+import type { GuestAddress, Reservation } from "@/types/graphql";
 import {
   addressLabel,
   formatAddressLine,
-  formatCardExpiry,
-  isCardExpired,
-  paymentLabel,
   sortPrimaryFirst,
 } from "@/lib/account";
 
-// ── Section shell ────────────────────────────────────────────────────────
+// ── Section shell (exported so the editable client components reuse it) ──
 
-function Section({
+export function Section({
   id,
   title,
   description,
@@ -48,7 +38,7 @@ function Section({
   );
 }
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
+export function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 px-6 py-4 border-b border-ink/8 last:border-0">
       <dt className="text-xs uppercase tracking-[0.18em] text-ink/55 sm:w-44 sm:shrink-0">
@@ -59,42 +49,15 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-// ── Personal information ─────────────────────────────────────────────────
-
-export function AccountInfo({ guest }: { guest: GuestProfile }) {
-  const fullName = [guest.name.title, guest.name.firstName, guest.name.lastName]
-    .filter(Boolean)
-    .join(" ");
-  const dob = guest.dateOfBirth
-    ? new Date(guest.dateOfBirth).toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-        timeZone: "UTC", // server returned a Date scalar (no time); avoid local-zone roll-back.
-      })
-    : "—";
-
+export function EmptyState({ message }: { message: string }) {
   return (
-    <Section id="profile" title="Profile" description="Your account essentials.">
-      <dl>
-        <Field label="Name" value={fullName || "—"} />
-        <Field label="Email" value={guest.email} />
-        <Field label="Phone" value={guest.phone || "—"} />
-        <Field label="Date of birth" value={dob} />
-        <Field label="Nationality" value={guest.nationality || "—"} />
-        <Field
-          label="Language"
-          value={guest.languagePreference?.toUpperCase() || "—"}
-        />
-        <Field label="Currency" value={guest.currencyPreference || "—"} />
-        <Field
-          label="Loyalty number"
-          value={guest.externalIds?.loyaltyNumber || "Not enrolled"}
-        />
-      </dl>
-    </Section>
+    <div className="px-6 py-10 text-center text-sm text-ink/55">{message}</div>
   );
 }
+
+// Profile + payments live in their own client-component files
+// (ProfileEditor / PaymentsManager) since they own edit state. The
+// shared Section/Field/EmptyState helpers above are reused there.
 
 // ── Addresses ────────────────────────────────────────────────────────────
 
@@ -102,13 +65,13 @@ export function AccountAddresses({ addresses }: { addresses: GuestAddress[] }) {
   const ordered = sortPrimaryFirst(addresses);
   const description =
     ordered.length === 0
-      ? "Add an address to speed up future bookings."
-      : `${ordered.length} on file.`;
+      ? "Self-serve address editing is coming soon."
+      : `${ordered.length} on file. Editing coming soon.`;
 
   return (
     <Section id="addresses" title="Addresses" description={description}>
       {ordered.length === 0 ? (
-        <EmptyState message="No addresses saved yet." />
+        <EmptyState message="No addresses on file yet." />
       ) : (
         <ul>
           {ordered.map((a) => (
@@ -127,61 +90,6 @@ export function AccountAddresses({ addresses }: { addresses: GuestAddress[] }) {
               <div className="text-sm text-ink/90">{formatAddressLine(a)}</div>
             </li>
           ))}
-        </ul>
-      )}
-    </Section>
-  );
-}
-
-// ── Payment methods ──────────────────────────────────────────────────────
-
-export function AccountPayments({
-  payments,
-}: {
-  payments: PaymentMethodSummary[];
-}) {
-  const ordered = sortPrimaryFirst(payments);
-  const description =
-    ordered.length === 0
-      ? "Save a card to check out faster."
-      : `${ordered.length} on file.`;
-
-  return (
-    <Section
-      id="payment"
-      title="Payment methods"
-      description={description}
-    >
-      {ordered.length === 0 ? (
-        <EmptyState message="No payment methods saved yet." />
-      ) : (
-        <ul>
-          {ordered.map((p) => {
-            const expired = isCardExpired(p.expiryMonth, p.expiryYear);
-            return (
-              <li
-                key={p.id}
-                className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 px-6 py-4 border-b border-ink/8 last:border-0"
-              >
-                <div className="text-sm text-ink/90 sm:w-60 sm:shrink-0 flex items-center gap-2">
-                  <span className="font-medium">{paymentLabel(p.brand, p.lastFour)}</span>
-                  {p.isDefault && (
-                    <span className="inline-block px-1.5 py-0.5 text-[10px] tracking-[0.14em] bg-goldDeep/15 text-goldDeep rounded-sm">
-                      DEFAULT
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-ink/70 flex items-baseline gap-3">
-                  <span>{p.holderName}</span>
-                  <span aria-hidden className="text-ink/30">·</span>
-                  <span className={expired ? "text-red-700" : ""}>
-                    {expired ? "Expired " : "Expires "}
-                    {formatCardExpiry(p.expiryMonth, p.expiryYear)}
-                  </span>
-                </div>
-              </li>
-            );
-          })}
         </ul>
       )}
     </Section>
@@ -266,10 +174,4 @@ function formatStayDates(checkIn: string, checkOut: string): string {
   const fmt = (iso: string) =>
     new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   return `${fmt(checkIn)} → ${fmt(checkOut)}`;
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="px-6 py-10 text-center text-sm text-ink/55">{message}</div>
-  );
 }

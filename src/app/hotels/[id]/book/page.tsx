@@ -13,8 +13,14 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
-import { RATES_QUERY } from "@/lib/queries";
-import type { HotelRates, Rate, RoomAvailability } from "@/types/graphql";
+import { gqlFetchAuthed } from "@/lib/graphqlAuthed";
+import { ME_PROFILE_QUERY, RATES_QUERY } from "@/lib/queries";
+import type {
+  GuestProfile,
+  HotelRates,
+  Rate,
+  RoomAvailability,
+} from "@/types/graphql";
 import { resolveStay, fmtDate } from "@/lib/stay";
 import { fromSearchParams as guestsFrom } from "@/lib/guests";
 import { picker } from "@/lib/searchParams";
@@ -30,6 +36,23 @@ import { BookingForm } from "@/components/BookingForm";
 import { BookingSummarySidebar } from "@/components/BookingSummarySidebar";
 
 type Resp = { hotel: HotelRates };
+
+/** ME_PROFILE_QUERY response shape — extends the GuestProfile type with
+ *  the connection-style paymentMethods field that the query selects. */
+type ProfileWithPayments = GuestProfile & {
+  paymentMethods?: { edges: { node: SavedPaymentMethod }[] } | null;
+};
+
+export type SavedPaymentMethod = {
+  id: string;
+  type: string;
+  brand: string;
+  lastFour: string;
+  holderName: string;
+  expiryMonth: number;
+  expiryYear: number;
+  isDefault: boolean;
+};
 
 export default async function BookPage({
   params,
@@ -47,24 +70,32 @@ export default async function BookPage({
   const rateToken = pick("rateToken") ?? "";
   const roomId = pick("roomId") ?? "";
 
-  // Read the signed-in guest from the session cookie. The JWT itself
-  // carries name + email so we don't have to round-trip the federated
-  // graph for the basics — the prefill applies before the rate fetch.
+  // Fetch the rate-list and (when signed in) the guest's full profile in
+  // parallel — covers name, email, phone, member#, addresses, and payment
+  // methods so the booking form lands fully pre-filled.
   const session = getSession();
-
-  let data: Resp | null = null;
-  try {
-    data = await gqlFetch<Resp>(RATES_QUERY, {
+  const [data, profileData] = await Promise.all([
+    gqlFetch<Resp>(RATES_QUERY, {
       id: params.id,
       checkIn: stay.checkIn,
       checkOut: stay.checkOut,
       adults: guests.adults,
       children: guests.children,
       currency,
-    });
-  } catch (err) {
-    console.error("[book] RATES_QUERY failed for hotel", params.id, err);
-  }
+    }).catch((err) => {
+      console.error("[book] RATES_QUERY failed for hotel", params.id, err);
+      return null as Resp | null;
+    }),
+    session
+      ? gqlFetchAuthed<{ me: ProfileWithPayments | null }>(ME_PROFILE_QUERY).catch(
+          (err) => {
+            console.error("[book] ME_PROFILE_QUERY failed", err);
+            return null;
+          },
+        )
+      : Promise.resolve(null),
+  ]);
+  const profile = profileData?.me ?? null;
 
   const hotel = data?.hotel;
   if (!hotel || !hotel.availability) {
@@ -145,9 +176,17 @@ export default async function BookPage({
               rateToken={rateToken}
               ratePlanCode={ratePlanCode}
               roomId={roomId}
-              prefillGuest={prefillFromSession(session?.guest)}
+              prefillGuest={prefillFromProfileOrSession(profile, session?.guest)}
               signedInLabel={
-                session ? `${session.guest.firstName} ${session.guest.lastName}` : undefined
+                profile
+                  ? `${profile.name.firstName} ${profile.name.lastName}`
+                  : session
+                    ? `${session.guest.firstName} ${session.guest.lastName}`
+                    : undefined
+              }
+              savedAddresses={profile?.addresses ?? []}
+              savedPaymentMethods={
+                profile?.paymentMethods?.edges?.map((e) => e.node) ?? []
               }
             />
           </div>
@@ -171,21 +210,40 @@ export default async function BookPage({
 }
 
 /**
- * Map the signed-in guest's session snapshot onto the BookingForm's
- * pre-fill shape. The JWT-backed cookie carries name + email, which
- * covers the most-typed fields. Phone, member number, and address are
- * left blank for the guest to fill — keeping them in the cookie would
- * bloat it and they're rarely the same as the booking address anyway.
+ * Map a signed-in guest's profile (or session snapshot when the
+ * profile fetch fails) onto the BookingForm's pre-fill shape. Picks
+ * the primary address (or the first one) for the country/zip slots
+ * — the guest can still pick a different saved address from the
+ * selector, or override every field manually.
  */
-function prefillFromSession(
-  guest: GuestSummary | undefined,
+function prefillFromProfileOrSession(
+  profile: ProfileWithPayments | null,
+  fallback: GuestSummary | undefined,
 ): Partial<import("@/lib/bookingValidation").GuestInformation> | undefined {
-  if (!guest) return undefined;
-  return {
-    firstName: guest.firstName,
-    lastName: guest.lastName,
-    email: guest.email,
-  };
+  if (profile) {
+    const primary = profile.addresses?.find((a) => a.isPrimary) ?? profile.addresses?.[0];
+    return {
+      firstName: profile.name.firstName,
+      lastName: profile.name.lastName,
+      email: profile.email,
+      memberNumber: profile.externalIds?.loyaltyNumber ?? "",
+      mobile: profile.phone ?? "",
+      country: primary?.countryCode ?? "US",
+      addressLine1: primary?.line1 ?? "",
+      addressLine2: primary?.line2 ?? "",
+      city: primary?.city ?? "",
+      state: primary?.stateCode ?? "",
+      zip: primary?.postalCode ?? "",
+    };
+  }
+  if (fallback) {
+    return {
+      firstName: fallback.firstName,
+      lastName: fallback.lastName,
+      email: fallback.email,
+    };
+  }
+  return undefined;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

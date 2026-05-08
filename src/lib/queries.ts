@@ -201,6 +201,20 @@ export const ME_PROFILE_QUERY = /* GraphQL */ `
         countryCode
         isPrimary
       }
+      paymentMethods(first: 10) {
+        edges {
+          node {
+            id
+            type
+            brand
+            lastFour
+            holderName
+            expiryMonth
+            expiryYear
+            isDefault
+          }
+        }
+      }
     }
   }
 `;

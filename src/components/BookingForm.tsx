@@ -13,8 +13,8 @@
 // confirmation page. We avoid <form action={...}> so the validation can
 // short-circuit synchronously without round-tripping the network.
 
-import { useMemo, useReducer, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useReducer, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { COUNTRIES_ALPHABETICAL, findCountry } from "@/lib/countries";
 import { hasStateDropdown, statesForCountry } from "@/lib/states";
 import {
@@ -28,6 +28,18 @@ import {
   type PaymentInformation,
 } from "@/lib/bookingValidation";
 import { CvvHelper } from "./CvvHelper";
+import {
+  defaultAddressId,
+  defaultPaymentMethodId,
+  isManualAddress,
+  isManualPayment,
+  MANUAL_ADDRESS_ID,
+  MANUAL_PAYMENT_ID,
+  summariseAddress,
+  summarisePaymentMethod,
+  type SavedAddress,
+} from "@/lib/savedPicker";
+import type { SavedPaymentMethod } from "@/app/hotels/[id]/book/page";
 
 type FormState = {
   guest: GuestInformation;
@@ -85,6 +97,8 @@ export function BookingForm({
   roomId,
   prefillGuest,
   signedInLabel,
+  savedAddresses = [],
+  savedPaymentMethods = [],
 }: {
   bookingHref: string;
   hotelId: string;
@@ -95,8 +109,22 @@ export function BookingForm({
   prefillGuest?: Partial<GuestInformation>;
   /** Optional banner shown above the form when prefill came from a session. */
   signedInLabel?: string;
+  /** Saved addresses on the guest's profile — drives the address picker. */
+  savedAddresses?: SavedAddress[];
+  /** Saved payment methods on the guest's profile — drives the card picker. */
+  savedPaymentMethods?: SavedPaymentMethod[];
 }) {
   const router = useRouter();
+  // Build a returnTo for the "Sign in for faster booking" link so the
+  // signed-in guest lands back on this exact booking URL with the rate
+  // token + selected room intact.
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentUrl = `${pathname}${
+    searchParams && searchParams.toString().length > 0 ? `?${searchParams.toString()}` : ""
+  }`;
+  const signInHref = `/sign-in?returnTo=${encodeURIComponent(currentUrl)}`;
+
   const [state, dispatch] = useReducer(reducer, {
     guest: buildInitialGuest(prefillGuest),
     payment: blankPayment,
@@ -104,6 +132,34 @@ export function BookingForm({
     ada: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Address + payment selectors — when the signed-in guest has saved
+  // entries, default to one of them; "manual" sentinel switches the
+  // section back to the freeform input fields.
+  const [selectedAddressId, setSelectedAddressId] = useState<string>(
+    () => defaultAddressId(savedAddresses),
+  );
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string>(
+    () => defaultPaymentMethodId(savedPaymentMethods),
+  );
+  const usingSavedAddress = !isManualAddress(selectedAddressId);
+  const usingSavedPayment = !isManualPayment(selectedPaymentId);
+  const selectedAddress = savedAddresses.find((a) => a.id === selectedAddressId);
+  const selectedPayment = savedPaymentMethods.find((p) => p.id === selectedPaymentId);
+
+  // When the guest picks a saved address, mirror its fields into the
+  // form state so the validation + submit-side carry the right values.
+  // Wrapped in useEffect so it only runs on actual selection changes.
+  useEffect(() => {
+    if (!selectedAddress) return;
+    setGuest("country", selectedAddress.countryCode);
+    setGuest("addressLine1", selectedAddress.line1);
+    setGuest("addressLine2", selectedAddress.line2 ?? "");
+    setGuest("city", selectedAddress.city);
+    setGuest("state", selectedAddress.stateCode ?? "");
+    setGuest("zip", selectedAddress.postalCode ?? "");
+    // setGuest is stable (dispatch) — no exhaustive-deps issue.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAddressId]);
   const [submitting, setSubmitting] = useState(false);
 
   const setGuest = (field: keyof GuestInformation, value: string) =>
@@ -121,10 +177,15 @@ export function BookingForm({
     setSubmitting(true);
 
     const guestResult = validateGuestInformation(state.guest);
-    const paymentResult = validatePaymentInformation(state.payment);
     const merged: Record<string, string> = {};
     if (!guestResult.ok) Object.assign(merged, prefix(guestResult.errors, "guest."));
-    if (!paymentResult.ok) Object.assign(merged, prefix(paymentResult.errors, "payment."));
+    // Validate payment fields only when the guest is entering a new card.
+    // A saved card is already trusted on the guest's profile; no inline
+    // re-entry needed.
+    if (!usingSavedPayment) {
+      const paymentResult = validatePaymentInformation(state.payment);
+      if (!paymentResult.ok) Object.assign(merged, prefix(paymentResult.errors, "payment."));
+    }
 
     if (Object.keys(merged).length > 0) {
       setErrors(merged);
@@ -166,7 +227,7 @@ export function BookingForm({
       ) : (
         <a
           id="sign-in"
-          href="/sign-in"
+          href={signInHref}
           className="inline-block mb-6 text-sm text-goldDeep underline hover:no-underline"
         >
           Sign in for faster booking →
@@ -231,6 +292,72 @@ export function BookingForm({
             </div>
           </Field>
 
+          {/* Saved addresses — radio picker. Renders only when the
+              signed-in guest has at least one saved address. The form
+              still falls through to the manual address fields when the
+              guest picks "Use a different address". */}
+          {savedAddresses.length > 0 && (
+            <fieldset className="md:col-span-2 border border-ink/10 p-4">
+              <legend className="px-2 text-[10px] uppercase tracking-[0.2em] text-ink/55">
+                Saved Addresses
+              </legend>
+              <ul className="space-y-2">
+                {savedAddresses.map((a) => (
+                  <li key={a.id}>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="addressChoice"
+                        value={a.id}
+                        checked={selectedAddressId === a.id}
+                        onChange={() => setSelectedAddressId(a.id)}
+                        className="mt-1 accent-goldDeep"
+                      />
+                      <span className="flex-1 text-sm">
+                        <span className="block">
+                          <span className="font-medium uppercase tracking-[0.15em] text-[10px] text-ink/55 mr-2">
+                            {a.type}
+                          </span>
+                          {a.isPrimary && (
+                            <span className="text-[10px] text-emerald-700 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5">
+                              Primary
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-ink/80">{summariseAddress(a)}</span>
+                      </span>
+                      <a
+                        href="/account/addresses"
+                        className="text-[11px] text-goldDeep underline hover:no-underline whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Edit
+                      </a>
+                    </label>
+                  </li>
+                ))}
+                <li>
+                  <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-ink/10">
+                    <input
+                      type="radio"
+                      name="addressChoice"
+                      value={MANUAL_ADDRESS_ID}
+                      checked={selectedAddressId === MANUAL_ADDRESS_ID}
+                      onChange={() => setSelectedAddressId(MANUAL_ADDRESS_ID)}
+                      className="mt-1 accent-goldDeep"
+                    />
+                    <span className="text-sm">Use a different address</span>
+                  </label>
+                </li>
+              </ul>
+            </fieldset>
+          )}
+
+          {/* Manual address fields — collapse to a read-only summary
+              when a saved address is selected, expand when "Use a
+              different address" is picked or no saved addresses exist. */}
+          {!usingSavedAddress && (
+          <>
           <Field id="country" label="Country" error={errors["guest.country"]} className="md:col-span-2">
             <select
               id="country"
@@ -324,6 +451,8 @@ export function BookingForm({
               className={inputCls(errors["guest.zip"])}
             />
           </Field>
+          </>
+          )}
         </Grid>
       </Section>
 
@@ -332,6 +461,65 @@ export function BookingForm({
         title="Payment Information"
         subtitle="A valid form of payment must be presented at check-in."
       >
+        {/* Saved cards — radio picker for the signed-in guest. Manual
+            entry is still available via "Use a different card". */}
+        {savedPaymentMethods.length > 0 && (
+          <fieldset className="border border-ink/10 p-4 mb-6">
+            <legend className="px-2 text-[10px] uppercase tracking-[0.2em] text-ink/55">
+              Saved Cards
+            </legend>
+            <ul className="space-y-2">
+              {savedPaymentMethods.map((m) => (
+                <li key={m.id}>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="paymentChoice"
+                      value={m.id}
+                      checked={selectedPaymentId === m.id}
+                      onChange={() => setSelectedPaymentId(m.id)}
+                      className="mt-1 accent-goldDeep"
+                    />
+                    <span className="flex-1 text-sm">
+                      <span className="block font-medium">{summarisePaymentMethod(m)}</span>
+                      <span className="block text-ink/65 text-xs">
+                        {m.holderName}
+                        {m.isDefault && (
+                          <span className="ml-2 text-[10px] text-emerald-700 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5">
+                            Default
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    <a
+                      href="/account/payment-methods"
+                      className="text-[11px] text-goldDeep underline hover:no-underline whitespace-nowrap"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Edit
+                    </a>
+                  </label>
+                </li>
+              ))}
+              <li>
+                <label className="flex items-start gap-3 cursor-pointer pt-2 border-t border-ink/10">
+                  <input
+                    type="radio"
+                    name="paymentChoice"
+                    value={MANUAL_PAYMENT_ID}
+                    checked={selectedPaymentId === MANUAL_PAYMENT_ID}
+                    onChange={() => setSelectedPaymentId(MANUAL_PAYMENT_ID)}
+                    className="mt-1 accent-goldDeep"
+                  />
+                  <span className="text-sm">Use a different card</span>
+                </label>
+              </li>
+            </ul>
+          </fieldset>
+        )}
+
+        {!usingSavedPayment && (
+        <>
         <p className="text-sm text-ink/70 mb-4">Pay Using Credit / Debit Card</p>
         <Grid>
           <Field
@@ -424,6 +612,15 @@ export function BookingForm({
             />
           </Field>
         </Grid>
+        </>
+        )}
+        {usingSavedPayment && selectedPayment && (
+          <p className="text-sm text-ink/65">
+            Charging <strong className="font-medium">{summarisePaymentMethod(selectedPayment)}</strong>{" "}
+            ({selectedPayment.holderName}). Switch to <em>Use a different card</em> above to pay
+            with a new one.
+          </p>
+        )}
       </Section>
 
       {/* ── Room requests + accessibility ────────────────────────── */}

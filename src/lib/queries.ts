@@ -219,6 +219,58 @@ export const ME_PROFILE_QUERY = /* GraphQL */ `
   }
 `;
 
+// ── Account page (authed): combined profile + recent trips ──────────────
+
+export const MY_ACCOUNT_QUERY = /* GraphQL */ `
+  query MyAccount($recentTripsLimit: Int) {
+    me {
+      id
+      email
+      phone
+      dateOfBirth
+      nationality
+      languagePreference
+      currencyPreference
+      memberSince
+      name { firstName lastName title }
+      externalIds { loyaltyNumber }
+      addresses {
+        id type line1 line2 city stateCode postalCode countryCode isPrimary
+      }
+      paymentMethods(first: 10) {
+        edges {
+          node { id type brand lastFour holderName expiryMonth expiryYear isDefault }
+        }
+      }
+      savedHotels(first: 5) {
+        edges { node { id hotelId savedAt } }
+      }
+      travelCompanions {
+        id
+        name { firstName lastName title }
+        relationship
+        dateOfBirth
+      }
+    }
+    myReservations(first: $recentTripsLimit) {
+      totalCount
+      edges {
+        node {
+          id
+          confirmationNumber
+          status
+          checkIn
+          checkOut
+          nights
+          hotel { id name location { address { city countryCode } } }
+          roomType { id name }
+          rateBreakdown { currency totalDue { amount currency } }
+        }
+      }
+    }
+  }
+`;
+
 // ── Trips / reservations ─────────────────────────────────────────────────
 
 export const MY_RESERVATIONS_QUERY = /* GraphQL */ `

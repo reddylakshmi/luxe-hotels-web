@@ -33,9 +33,13 @@ export function Header() {
           </Link>
           {session ? (
             <>
-              <span className="text-sm text-ink/80">
+              <Link
+                href="/account"
+                className="text-sm text-ink/80 hover:text-goldDeep"
+                aria-label={`Account — ${session.guest.firstName} ${session.guest.lastName}`}
+              >
                 Hi, <strong className="font-medium">{session.guest.firstName}</strong>
-              </span>
+              </Link>
               <form action={signOutAction}>
                 <button
                   type="submit"

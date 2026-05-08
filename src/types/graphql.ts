@@ -241,23 +241,57 @@ export type HotelRates = {
 
 // ── Guest profile (authed) ───────────────────────────────────────────────────
 
+export type GuestAddress = {
+  id: string;
+  type: string;
+  line1?: string | null;
+  line2?: string | null;
+  city: string;
+  stateCode?: string | null;
+  postalCode?: string | null;
+  countryCode: string;
+  isPrimary: boolean;
+};
+
+export type PaymentMethodSummary = {
+  id: string;
+  type: string;
+  brand?: string | null;
+  lastFour: string;
+  holderName?: string | null;
+  expiryMonth: number;
+  expiryYear: number;
+  isDefault: boolean;
+};
+
+export type SavedHotelSummary = {
+  id: string;
+  hotelId: string;
+  savedAt: string;
+};
+
+export type TravelCompanionSummary = {
+  id: string;
+  name: { firstName: string; lastName: string; title?: string | null };
+  relationship?: string | null;
+  dateOfBirth?: string | null;
+};
+
 export type GuestProfile = {
   id: string;
   email: string;
   phone?: string | null;
-  name: { firstName: string; lastName: string };
+  dateOfBirth?: string | null;
+  nationality?: string | null;
+  languagePreference: string;
+  currencyPreference: string;
+  name: { firstName: string; lastName: string; title?: string | null };
   externalIds?: { loyaltyNumber?: string | null } | null;
-  addresses: {
-    id: string;
-    type: string;
-    line1: string;
-    line2?: string | null;
-    city: string;
-    stateCode?: string | null;
-    postalCode?: string | null;
-    countryCode: string;
-    isPrimary: boolean;
-  }[];
+  addresses: GuestAddress[];
+  paymentMethods: { edges: { node: PaymentMethodSummary }[] };
+  savedHotels: { edges: { node: SavedHotelSummary }[] };
+  travelCompanions: TravelCompanionSummary[];
+  memberSince: string;
 };
 
 // ── Trips / reservations ─────────────────────────────────────────────────────

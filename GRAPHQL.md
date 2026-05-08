@@ -28,6 +28,11 @@ top-level field.
 | Destination autocomplete (typeahead) | search bar (any page) | [`DESTINATION_SUGGESTIONS_QUERY`](#destination_suggestions_query) | property |
 | Recently Viewed Hotels (home section) | `/` (client-only island) | [`RECENTLY_VIEWED_QUERY`](#recently_viewed_query) | property |
 | Hotel detail | `/hotels/[id]` | [`HOTEL_DETAIL_QUERY`](#hotel_detail_query) | property · experiences · meetings |
+| Sign in | `/sign-in` | [`SIGN_IN_MUTATION`](#sign_in_mutation) | guest |
+| Create account | `/sign-up` | [`SIGN_UP_MUTATION`](#sign_up_mutation) | guest |
+| Trips — find by confirmation # | `/trips` (signed-out) | [`RESERVATION_BY_CONFIRMATION_QUERY`](#reservation_by_confirmation_query) | reservations · property |
+| My Trips | `/trips` (signed-in) | [`MY_RESERVATIONS_QUERY`](#my_reservations_query) | reservations · property |
+| My profile (server-side prefill source) | booking page (signed-in) | [`ME_PROFILE_QUERY`](#me_profile_query) | guest |
 | Select a Room and Rate | `/hotels/[id]/rates` | [`RATES_QUERY`](#rates_query) | property · pricing |
 | Stories list + category filter | `/stories` | [`STORIES_LIST_QUERY`](#stories_list_query) | content |
 | Story detail | `/stories/[slug]` | [`STORY_DETAIL_QUERY`](#story_detail_query) | content · property |
@@ -608,6 +613,193 @@ query Inspirations($season: Season) {
     approxBudget { amount currency }
     recommendedDays
     featuredHotels { id name }
+  }
+}
+```
+
+---
+
+## `SIGN_IN_MUTATION`
+
+**Page:** `/sign-in` — fired by [`SignInForm`](./src/components/SignInForm.tsx)
+through [`signInAction`](./src/lib/authActions.ts) (`'use server'`).
+
+**Functionality:** authenticate an existing guest by email + password.
+Returns either an `AuthPayload` (with the JWT and a guest snapshot the
+header uses to greet the guest) or an error union member. The server
+action persists the access token in an httpOnly cookie via
+[`authSession.writeSession`](./src/lib/authSession.ts).
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation SignIn($email: EmailAddress!, $password: String!) {
+  signIn(input: { email: $email, password: $password }) {
+    __typename
+    ... on AuthPayload {
+      accessToken
+      expiresIn         # seconds — drives the cookie maxAge
+      tokenType
+      isNewAccount
+      guest {
+        id
+        email
+        name { firstName lastName }
+      }
+    }
+    ... on AuthenticationError { code message }
+    ... on ValidationError { code message fieldErrors { field message } }
+  }
+}
+```
+
+> Mock backend: `GuestMockDataSource.signIn` matches by email and ignores
+> the password — any 8+ char password works. Use `sophia.chen@email.com`
+> for an account with seeded reservations.
+
+---
+
+## `SIGN_UP_MUTATION`
+
+**Page:** `/sign-up` — fired by [`SignUpForm`](./src/components/SignUpForm.tsx)
+through [`signUpAction`](./src/lib/authActions.ts).
+
+**Functionality:** create a new guest account, immediately sign the
+guest in. The server action validates first/last name, email format,
+password strength (≥8 chars + letter + digit), terms acceptance, then
+calls the mutation.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+mutation SignUp(
+  $email: EmailAddress!
+  $password: String!
+  $firstName: String!
+  $lastName: String!
+  $phone: PhoneNumber
+) {
+  signUp(input: {
+    email: $email, password: $password,
+    firstName: $firstName, lastName: $lastName, phone: $phone,
+  }) {
+    __typename
+    ... on AuthPayload {
+      accessToken
+      expiresIn
+      tokenType
+      isNewAccount      # always true on a successful sign-up
+      guest {
+        id
+        email
+        name { firstName lastName }
+      }
+    }
+    ... on ValidationError { code message fieldErrors { field message } }
+  }
+}
+```
+
+---
+
+## `RESERVATION_BY_CONFIRMATION_QUERY`
+
+**Page:** `/trips` (signed-out branch) — fired by
+[`FindReservationForm`](./src/components/FindReservationForm.tsx)
+through [`findTripAction`](./src/lib/tripsActions.ts).
+
+**Functionality:** public lookup by confirmation number. No JWT needed,
+which mirrors the standard hotel-industry pattern (find your booking
+without an account). Returns a single `Reservation` or null.
+
+**Subgraphs touched:** `reservations` (the lookup), `property` (for the
+hotel name + city in the result card via federation).
+
+```graphql
+query ReservationByConfirmation(
+  $confirmationNumber: String!
+  $guestLastName: String
+) {
+  reservationByConfirmationNumber(
+    confirmationNumber: $confirmationNumber
+    guestLastName: $guestLastName
+  ) {
+    id confirmationNumber status
+    checkIn checkOut nights adults children
+    hotel { id name location { address { city countryCode } } }
+    roomType { id name }
+    rateBreakdown { currency totalDue { amount currency } }
+    isRefundable
+    canCheckInOnline
+  }
+}
+```
+
+> Try `LUX-2025-100001` (Paris), `LUX-2025-100002` (London),
+> `LUX-2025-100003` (Tokyo), or `LUX-2025-100004` (Dubai).
+
+---
+
+## `MY_RESERVATIONS_QUERY`
+
+**Page:** `/trips` (signed-in branch) — fired server-side via
+[`gqlFetchAuthed`](./src/lib/graphqlAuthed.ts), which adds the
+`Authorization: Bearer <token>` header from the session cookie before
+calling the federated router.
+
+**Functionality:** every reservation on the signed-in guest's account.
+The reservations subgraph rejects this query with `UnauthorizedException`
+when no token is forwarded, so the page only calls it inside a
+session-guarded branch.
+
+**Subgraphs touched:** `reservations` · `property` (federated hotel +
+roomType resolution).
+
+```graphql
+query MyReservations($first: Int, $filter: ReservationFilter) {
+  myReservations(first: $first, filter: $filter) {
+    totalCount
+    edges {
+      node {
+        id confirmationNumber status
+        checkIn checkOut nights adults children
+        hotel { id name location { address { city countryCode } } }
+        roomType { id name }
+        rateBreakdown { currency totalDue { amount currency } }
+        isRefundable
+        canCheckInOnline
+      }
+    }
+  }
+}
+```
+
+---
+
+## `ME_PROFILE_QUERY`
+
+**Page:** Reserved for server-side prefill on the Complete Your Booking
+page. **Currently NOT wired** — the booking page reads the basic guest
+identity (firstName / lastName / email) directly from the session
+cookie because the existing `DefaultAuthContextResolver` doesn't
+surface the HTTP request via the DGS context for federated authed
+queries (see `GuestAuthenticatedTest`'s `@TestConfiguration` workaround).
+Kept in the registry so the day that's fixed, the booking page can
+add `phone`, `loyaltyNumber`, and the primary address to the prefill.
+
+**Subgraphs touched:** `guest`.
+
+```graphql
+query Me {
+  me {
+    id
+    email
+    phone
+    name { firstName lastName }
+    externalIds { loyaltyNumber }
+    addresses {
+      id type line1 line2 city stateCode postalCode countryCode isPrimary
+    }
   }
 }
 ```

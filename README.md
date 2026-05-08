@@ -21,6 +21,9 @@ Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federa
 | `/hotels/[id]/rates` | Select a Room and Rate — Marriott-style rate-list page with editable stay/guests bar, 42-currency selector, "show with taxes and fees" toggle, expandable room cards (Flexible / Member Exclusive / Package rate plans) | property, pricing |
 | `/hotels/[id]/book` | Complete Your Booking — guest info form (53-country dropdown, country-aware state + zip), payment fields with Luhn-validated card number, room-requests + accessibility, sticky summary sidebar, 14-min hold timer | property, pricing |
 | `/hotels/[id]/book/confirmation` | Booking confirmation with reference number | property |
+| `/sign-in` | Member sign-in form (email + password) | guest |
+| `/sign-up` | Create-account form (free tier, member rates, points) | guest |
+| `/trips` | Signed-in: list of `myReservations`. Signed-out: public confirmation-number lookup. | reservations · property |
 | `/stories` | Article list with category filter | content |
 | `/stories/[slug]` | Article detail with author, tags, related hotels | content, property |
 | `/offers` | Active deal spotlights | content, property |
@@ -57,6 +60,23 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
   pages, surfaced in a client-only island on the home page after the
   Featured Hotels carousel. The booking flow intentionally doesn't
   track — mid-purchase pages shouldn't pollute the browse history.
+- **Sign in / Sign up.** Three-layer architecture: pure validation
+  (`lib/auth.ts`) → server actions on httpOnly session cookies
+  (`lib/authActions.ts`, `lib/authSession.ts`) → forms with
+  `useFormState` for progressive enhancement. Header swaps to a
+  "Hi, {firstName}" greeting + Sign Out when authenticated. The
+  Complete Your Booking form pre-fills first name, last name, and
+  email from the session so a logged-in guest doesn't retype them.
+- **My Trips.** Signed-in guests see their reservations via the
+  authed `myReservations` query (`gqlFetchAuthed` adds the JWT
+  Bearer header from the cookie). Signed-out guests get a public
+  "find by confirmation number" form backed by
+  `reservationByConfirmationNumber`.
+- **Hotel-detail tabs.** WAI-ARIA tab pattern on `/hotels/[id]`
+  (Overview · Rooms & Suites · Experiences · Meetings · Location)
+  swaps content in place — no scroll jumps. Hash-synced URL so
+  `/hotels/X#meetings` deep-links work; keyboard nav (←/→/↑/↓ wrap,
+  Home/End jump) follows the spec.
 
 ## Run it locally
 
@@ -91,7 +111,7 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 ## Testing
 
 ```bash
-npm test           # full vitest suite (276 tests, ~0.5s)
+npm test           # full vitest suite (336 tests, ~0.5s)
 npm run test:watch # watch mode
 ```
 
@@ -105,6 +125,8 @@ npm run test:watch # watch mode
 | `lib/money.test.ts` | 7 | `parseMoneyAmount`, `formatMoney`, `formatAmount` edge cases |
 | `lib/image.test.ts` | 7 | Placeholder-host detection, deterministic seed, real-URL passthrough |
 | `lib/recentlyViewed.test.ts` | 15 | localStorage ordering, dedup, cap at 12, malformed JSON, SSR-null storage |
+| `lib/auth.test.ts` | 22 | Password rules, confirm-password, sign-in / sign-up form validators, session expiry, AuthPayload→Session conversion |
+| `lib/hotelTabs.test.ts` | 38 | Tab id parsing (case / whitespace / # prefix), keyboard wraparound (←/→/↑/↓/Home/End), default-tab fallback |
 | `lib/guests.test.ts` | 29 | Room/adult/child arithmetic, child-age serialisation |
 | `lib/stay.test.ts` | 18 | `resolveStay` defaulting from any partial input |
 | `lib/dateRange.test.ts` | ~15 | Date-range picker math (range building, day picking) |
@@ -137,7 +159,12 @@ src/
 │   ├── stories/
 │   │   ├── page.tsx                     article list (STORIES_LIST_QUERY)
 │   │   └── [slug]/page.tsx              article detail (STORY_DETAIL_QUERY)
-│   └── offers/page.tsx                  deal spotlights (OFFERS_QUERY)
+│   ├── offers/page.tsx                  deal spotlights (OFFERS_QUERY)
+│   ├── (auth)/                          shared layout for sign-in / sign-up
+│   │   ├── layout.tsx                   editorial split, redirects if authed
+│   │   ├── sign-in/page.tsx             Sign-in form (SIGN_IN_MUTATION)
+│   │   └── sign-up/page.tsx             Create-account form (SIGN_UP_MUTATION)
+│   └── trips/page.tsx                   My Trips list / find-by-confirmation
 ├── components/
 │   ├── Header.tsx · Footer.tsx · Hero.tsx
 │   ├── SearchBar.tsx                    composable search (compact / full)
@@ -158,10 +185,16 @@ src/
 │   ├── BookingSummarySidebar.tsx        right-column summary on book page
 │   ├── CvvHelper.tsx                    "where's the CVV" popover
 │   ├── RecentlyViewedTracker.tsx        invisible per-page tracker
-│   └── RecentlyViewedSection.tsx        home-page Recently Viewed island
+│   ├── RecentlyViewedSection.tsx        home-page Recently Viewed island
+│   ├── HotelTabs.tsx                    ARIA tab swap on /hotels/[id]
+│   ├── SignInForm.tsx · SignUpForm.tsx  auth forms (useFormState)
+│   ├── SignInOrJoin.tsx                 header dropdown for auth state
+│   ├── TripCard.tsx                     reservation card (shared list/lookup)
+│   └── FindReservationForm.tsx          public confirmation-number lookup
 ├── lib/
 │   ├── graphql.ts                       gqlFetch helper
-│   ├── queries.ts                       all GraphQL operations (13 queries)
+│   ├── queries.ts                       all GraphQL operations (16 ops total)
+│   ├── graphqlAuthed.ts                 server-only authed gqlFetch wrapper
 │   ├── image.ts                         placeholder URL mapper
 │   ├── stay.ts                          stay-window resolver + formatter
 │   ├── search.ts                        URL ↔ search-input bidirectional
@@ -175,6 +208,11 @@ src/
 │   ├── states.ts                        states/provinces for major countries
 │   ├── autocomplete.ts                  destination-suggestion grouping
 │   ├── bookingValidation.ts             pure form validation + Luhn + FX math
-│   └── recentlyViewed.ts                per-device localStorage list helpers
+│   ├── recentlyViewed.ts                per-device localStorage list helpers
+│   ├── hotelTabs.ts                     ARIA tab keyboard math + hash parser
+│   ├── auth.ts                          pure validators + Session shape
+│   ├── authActions.ts                   server actions: sign in / up / out
+│   ├── authSession.ts                   httpOnly session-cookie read/write
+│   └── tripsActions.ts                  server action: find by confirmation #
 └── types/graphql.ts                     hand-typed response shapes
 ```

@@ -1,17 +1,53 @@
 import { describe, expect, it } from "vitest";
 import {
   capacityFit,
+  draftToSubmitVariables,
   formatMatchScore,
   formatStayWindow,
+  isRfpCancellable,
   labelCategory,
   labelEventType,
+  labelRfpStatus,
+  labelRfpStep,
   labelSetup,
   matchTone,
+  nextStep,
   nightsBetween,
+  prevStep,
+  rfpStatusTone,
   sortCapacityStyles,
   toSearchVariables,
+  validateBasicsStep,
+  validateContactStep,
   validateMeetingsSearch,
+  validateRfpStep,
+  validateSpacesStep,
+  type RfpDraft,
 } from "./meetings";
+
+const draft: RfpDraft = {
+  eventName: "Pinnacle Q3 Offsite",
+  eventType: "BOARD_RETREAT",
+  startDate: "2026-09-01",
+  endDate: "2026-09-03",
+  attendees: 40,
+  guestRoomsPerNight: 45,
+  spaceRequirements: [
+    {
+      name: "Plenary",
+      setup: "U_SHAPE",
+      attendees: 40,
+      durationHours: 8,
+      startTime: "09:00",
+    },
+  ],
+  cateringRequirements: "Plated dinner each evening, vegetarian-forward",
+  additionalRequirements: "Concierge airport transfers",
+  organizer: "Sophia Chen",
+  organization: "Pinnacle Ventures",
+  contactEmail: "sophia@pinnacle.example",
+  contactPhone: "+1-415-555-0101",
+};
 
 describe("labelSetup", () => {
   it("renders friendly labels for known styles", () => {
@@ -240,5 +276,155 @@ describe("nightsBetween + formatStayWindow", () => {
 
   it("falls back to the raw ISO when parsing fails", () => {
     expect(formatStayWindow("not-a-date", "2026-08-04")).toContain("not-a-date");
+  });
+});
+
+describe("RFP wizard step validators", () => {
+  it("validateBasicsStep accepts a complete draft", () => {
+    expect(validateBasicsStep(draft)).toEqual({});
+  });
+
+  it("validateBasicsStep flags missing fields", () => {
+    const errors = validateBasicsStep({
+      ...draft,
+      eventName: "  ",
+      attendees: 0,
+      startDate: "",
+    });
+    expect(errors.eventName).toBeDefined();
+    expect(errors.attendees).toBeDefined();
+    expect(errors.startDate).toBeDefined();
+  });
+
+  it("validateBasicsStep flags inverted date range", () => {
+    expect(
+      validateBasicsStep({ ...draft, startDate: "2026-09-10", endDate: "2026-09-01" })
+        .endDate,
+    ).toBe("End must be on or after start");
+  });
+
+  it("validateBasicsStep clamps attendees range", () => {
+    expect(validateBasicsStep({ ...draft, attendees: 1 }).attendees).toContain("Minimum");
+    expect(validateBasicsStep({ ...draft, attendees: 6000 }).attendees).toContain("Maximum");
+  });
+
+  it("validateSpacesStep requires at least one row", () => {
+    expect(validateSpacesStep({ ...draft, spaceRequirements: [] }).spaceRequirements)
+      .toBeDefined();
+  });
+
+  it("validateSpacesStep flags per-row errors with indexed keys", () => {
+    const errors = validateSpacesStep({
+      ...draft,
+      spaceRequirements: [
+        { name: "", setup: "THEATER" as const, attendees: 0, durationHours: 0 },
+      ],
+    });
+    expect(errors["space.0.name"]).toBeDefined();
+    expect(errors["space.0.attendees"]).toBeDefined();
+    expect(errors["space.0.durationHours"]).toBeDefined();
+  });
+
+  it("validateSpacesStep rejects malformed start time", () => {
+    const errors = validateSpacesStep({
+      ...draft,
+      spaceRequirements: [
+        {
+          name: "Plenary",
+          setup: "U_SHAPE",
+          attendees: 40,
+          durationHours: 8,
+          startTime: "9am",
+        },
+      ],
+    });
+    expect(errors["space.0.startTime"]).toBe("Use HH:MM");
+  });
+
+  it("validateContactStep flags missing + bad email/phone", () => {
+    const errors = validateContactStep({
+      ...draft,
+      organizer: "",
+      contactEmail: "not-an-email",
+      contactPhone: "abc",
+    });
+    expect(errors.organizer).toBeDefined();
+    expect(errors.contactEmail).toBeDefined();
+    expect(errors.contactPhone).toBeDefined();
+  });
+
+  it("validateRfpStep on review aggregates earlier steps", () => {
+    const errors = validateRfpStep("review", { ...draft, eventName: "", contactEmail: "x" });
+    expect(errors.eventName).toBeDefined();
+    expect(errors.contactEmail).toBeDefined();
+  });
+
+  it("nextStep + prevStep are bounded to the step list", () => {
+    expect(nextStep("review")).toBe("review");
+    expect(prevStep("basics")).toBe("basics");
+    expect(nextStep("basics")).toBe("spaces");
+    expect(prevStep("review")).toBe("contact");
+  });
+
+  it("labelRfpStep covers every step", () => {
+    expect(labelRfpStep("basics")).toBe("Event basics");
+    expect(labelRfpStep("review")).toBe("Review & submit");
+  });
+});
+
+describe("draftToSubmitVariables", () => {
+  it("emits the wire shape with required fields populated", () => {
+    const vars = draftToSubmitVariables(draft, ["prop-paris-001"]);
+    expect(vars).toMatchObject({
+      organizer: "Sophia Chen",
+      eventName: "Pinnacle Q3 Offsite",
+      attendees: 40,
+      preferredHotelIds: ["prop-paris-001"],
+      cateringRequirements: "Plated dinner each evening, vegetarian-forward",
+    });
+  });
+
+  it("drops empty optional text fields", () => {
+    const vars = draftToSubmitVariables(
+      { ...draft, cateringRequirements: "  ", additionalRequirements: "" },
+      ["prop-paris-001"],
+    );
+    expect(vars).not.toHaveProperty("cateringRequirements");
+    expect(vars).not.toHaveProperty("additionalRequirements");
+  });
+
+  it("includes guestRoomsPerNight only when positive", () => {
+    expect(
+      draftToSubmitVariables({ ...draft, guestRoomsPerNight: null }, ["x"]),
+    ).not.toHaveProperty("guestRoomsPerNight");
+    expect(
+      draftToSubmitVariables({ ...draft, guestRoomsPerNight: 0 }, ["x"]),
+    ).not.toHaveProperty("guestRoomsPerNight");
+    expect(
+      draftToSubmitVariables({ ...draft, guestRoomsPerNight: 12 }, ["x"]),
+    ).toMatchObject({ guestRoomsPerNight: 12 });
+  });
+});
+
+describe("RFP status tone + cancellability", () => {
+  it("buckets statuses into tones", () => {
+    expect(rfpStatusTone("DRAFT")).toBe("draft");
+    expect(rfpStatusTone("SUBMITTED")).toBe("active");
+    expect(rfpStatusTone("PROPOSAL_SENT")).toBe("active");
+    expect(rfpStatusTone("ACCEPTED")).toBe("won");
+    expect(rfpStatusTone("CANCELLED")).toBe("lost");
+    expect(rfpStatusTone("UNKNOWN")).toBe("neutral");
+  });
+
+  it("formats labels", () => {
+    expect(labelRfpStatus("PROPOSAL_SENT")).toBe("Proposal sent");
+    expect(labelRfpStatus("UNHANDLED")).toBe("UNHANDLED");
+  });
+
+  it("only allows guest-side cancel for in-flight statuses", () => {
+    expect(isRfpCancellable("SUBMITTED")).toBe(true);
+    expect(isRfpCancellable("PROPOSAL_SENT")).toBe(true);
+    expect(isRfpCancellable("ACCEPTED")).toBe(false);
+    expect(isRfpCancellable("CANCELLED")).toBe(false);
   });
 });

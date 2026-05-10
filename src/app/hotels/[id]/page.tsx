@@ -165,12 +165,26 @@ function buildHotelPanels(
             <section className="bg-ink text-cream">
               <div className="container-x py-16">
                 <div className="eyebrow text-cream/70 mb-3">Meetings &amp; Events</div>
-                <h2 className="font-serif text-4xl md:text-5xl mb-12">Spaces that hold a moment.</h2>
+                <h2 className="font-serif text-4xl md:text-5xl mb-6">Spaces that hold a moment.</h2>
+                <p className="text-cream/70 max-w-2xl mb-10">
+                  Browse a venue, then start an RFP — a Luxe planner will
+                  reply within one business day.{" "}
+                  <Link
+                    href={`/meetings?hotelId=${h.id}`}
+                    className="underline hover:no-underline text-cream"
+                  >
+                    Explore all meeting venues across Luxe →
+                  </Link>
+                </p>
                 {h.eventSpaces && h.eventSpaces.length > 0 ? (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {h.eventSpaces.slice(0, 6).map((s) => (
-                                  <div key={s.id} className="border border-cream/15 p-6">
-                                    <h3 className="font-serif text-xl mb-3 text-cream">{s.name}</h3>
+                                  <Link
+                                    key={s.id}
+                                    href={`/meetings/${h.id}/${s.id}`}
+                                    className="block border border-cream/15 p-6 hover:border-cream/40 transition-colors group"
+                                  >
+                                    <h3 className="font-serif text-xl mb-3 text-cream group-hover:text-gold">{s.name}</h3>
                                     <ul className="space-y-1 text-sm text-cream/70">
                                       {s.capacityStyles.slice(0, 3).map((c) => (
                                               <li key={c.setup}>
@@ -178,7 +192,10 @@ function buildHotelPanels(
                                               </li>
                                       ))}
                                     </ul>
-                                  </div>
+                                    <div className="mt-4 text-xs uppercase tracking-[0.18em] text-gold/80">
+                                      Request a proposal →
+                                    </div>
+                                  </Link>
                           ))}
                         </div>
                 ) : (

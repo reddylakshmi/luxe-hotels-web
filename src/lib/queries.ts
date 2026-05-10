@@ -887,6 +887,132 @@ export const INSPIRATIONS_QUERY = /* GraphQL */ `
 
 // ── Meetings & Events ────────────────────────────────────────────────────
 
+export const SUBMIT_RFP_MUTATION = /* GraphQL */ `
+  mutation SubmitRFP($input: SubmitRFPInput!, $idempotencyKey: UUID!) {
+    submitRFP(input: $input, idempotencyKey: $idempotencyKey) {
+      __typename
+      ... on RFP {
+        id
+        rfpNumber
+        status
+        submittedAt
+        eventName
+      }
+      ... on ValidationError {
+        code
+        message
+        fieldErrors { field message }
+      }
+      ... on NotFoundError { code message }
+    }
+  }
+`;
+
+export const UPDATE_RFP_MUTATION = /* GraphQL */ `
+  mutation UpdateRFP($rfpId: ID!, $input: UpdateRFPInput!) {
+    updateRFP(rfpId: $rfpId, input: $input) {
+      __typename
+      ... on RFP { id status updatedAt }
+      ... on ValidationError {
+        code
+        message
+        fieldErrors { field message }
+      }
+      ... on NotFoundError { code message }
+    }
+  }
+`;
+
+export const CANCEL_RFP_MUTATION = /* GraphQL */ `
+  mutation CancelRFP($rfpId: ID!, $reason: String) {
+    cancelRFP(rfpId: $rfpId, reason: $reason) {
+      __typename
+      ... on RFP { id status }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on NotFoundError { code message }
+    }
+  }
+`;
+
+export const MY_RFPS_QUERY = /* GraphQL */ `
+  query MyRFPs($first: Int, $after: String, $status: RFPStatus) {
+    myRFPs(first: $first, after: $after, status: $status) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
+      edges {
+        cursor
+        node {
+          id
+          rfpNumber
+          status
+          eventName
+          eventType
+          startDate
+          endDate
+          attendees
+          guestRoomsPerNight
+          submittedAt
+          updatedAt
+          preferredHotels { id name location { address { city countryCode } } }
+          responses {
+            id
+            status
+            hotelId
+            hotel { id name }
+            proposedRate { amount currency }
+            proposedFAndBMinimum { amount currency }
+            proposedRoomBlock
+            notes
+            respondedAt
+            validUntil
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const RFP_DETAIL_QUERY = /* GraphQL */ `
+  query RFPDetail($id: ID!) {
+    rfp(id: $id) {
+      id
+      rfpNumber
+      status
+      organizer
+      organization
+      contactEmail
+      contactPhone
+      eventName
+      eventType
+      startDate
+      endDate
+      attendees
+      guestRoomsPerNight
+      cateringRequirements
+      additionalRequirements
+      submittedAt
+      updatedAt
+      expiresAt
+      preferredHotels { id name location { address { city countryCode } } }
+      spaceRequirements { name setup attendees durationHours startTime }
+      responses {
+        id
+        status
+        hotelId
+        hotel { id name }
+        proposedSpaces { id name }
+        proposedRate { amount currency }
+        proposedFAndBMinimum { amount currency }
+        proposedRoomBlock
+        notes
+        respondedAt
+        validUntil
+      }
+      history { status notes changedAt changedBy }
+    }
+  }
+`;
+
 export const MEETINGS_SEARCH_QUERY = /* GraphQL */ `
   query MeetingsSearch($input: EventSpaceSearchInput!) {
     searchEventSpaces(input: $input) {

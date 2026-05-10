@@ -25,6 +25,7 @@ import {
   transactionLabel,
 } from "@/lib/loyalty";
 import { Section, Field, EmptyState } from "@/components/AccountSections";
+import { AccountBreadcrumb } from "@/components/AccountBreadcrumb";
 
 type Resp = { myLoyaltyAccount: LoyaltyAccount | null };
 
@@ -63,11 +64,7 @@ export default async function LoyaltyPage() {
       {/* Hero */}
       <section className="bg-ink text-cream">
         <div className="container-x py-12 md:py-16">
-          <div className="text-[11px] uppercase tracking-[0.3em] text-cream/65 mb-3">
-            <Link href="/account" className="hover:text-cream/90">Account</Link>
-            <span className="mx-2 text-cream/40">/</span>
-            <span className="text-cream/85">Loyalty</span>
-          </div>
+          <AccountBreadcrumb current="Loyalty" variant="dark" />
           <div className="flex flex-wrap items-end gap-x-12 gap-y-6">
             <div>
               <h1 className="font-serif text-4xl md:text-5xl leading-tight mb-3">
@@ -144,6 +141,12 @@ const SIDEBAR_ITEMS = [
 function LoyaltySidebar() {
   return (
     <nav aria-label="Loyalty sections" className="md:sticky md:top-24 md:self-start">
+      <Link
+        href="/account"
+        className="hidden md:inline-flex items-center text-xs text-ink/55 hover:text-goldDeep mb-3 underline-offset-4 hover:underline"
+      >
+        ← Back to account
+      </Link>
       <ul className="flex md:flex-col gap-1 md:gap-0 overflow-x-auto md:overflow-visible -mx-4 px-4 md:mx-0 md:px-0 md:border-l md:border-ink/15">
         {SIDEBAR_ITEMS.map((item) => (
           <li key={item.id} className="shrink-0 md:shrink">

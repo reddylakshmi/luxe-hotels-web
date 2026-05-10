@@ -71,7 +71,7 @@ export default async function AccountPage() {
       />
 
       <div className="container-x py-12 md:grid md:grid-cols-[180px_minmax(0,1fr)] md:gap-12">
-        <AccountSidebar />
+        <AccountSidebar currentPath="/account" />
 
         <div className="flex flex-col gap-12 min-w-0 mt-8 md:mt-0">
           <ProfileEditor guest={guest} />

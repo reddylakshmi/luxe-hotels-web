@@ -23,6 +23,7 @@ import {
 } from "@/lib/meetings";
 import { formatAmount, parseMoneyAmount } from "@/lib/money";
 import { AccountSidebar } from "@/components/AccountSidebar";
+import { AccountBreadcrumb } from "@/components/AccountBreadcrumb";
 import { RfpStatusTimeline } from "@/components/RfpStatusTimeline";
 import { RfpCancelDialog } from "@/components/RfpCancelDialog";
 
@@ -99,6 +100,7 @@ export default async function AccountEventsPage({
     <>
       <section className="bg-cream border-b border-ink/10">
         <div className="container-x py-10">
+          <AccountBreadcrumb current="Events" />
           <div className="eyebrow mb-2">Events & RFPs</div>
           <h1 className="font-serif text-3xl md:text-4xl leading-tight">
             Your meeting and event proposals
@@ -135,7 +137,7 @@ export default async function AccountEventsPage({
 
       <section className="container-x py-10">
         <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-8 md:gap-12">
-          <AccountSidebar />
+          <AccountSidebar currentPath="/account/events" />
           <div>
             {sorted.length === 0 ? (
               <EmptyState />

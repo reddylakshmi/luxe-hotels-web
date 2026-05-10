@@ -151,20 +151,21 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 - **No Apollo Client on the client.** All pages are server components. Caching and revalidation are handled by Next's `fetch` (`revalidate: 30`). If a future page needs interactive client-side queries, add Apollo Client locally in that route — don't make it a dependency for the whole app.
 - **Type safety.** `src/types/graphql.ts` is hand-written to match the queries in `src/lib/queries.ts`. When the schema changes, update both files. (Future improvement: add `graphql-codegen` to generate types from a downloaded supergraph SDL.)
 - **Locale.** All queries pass `locale: "en"`. The GraphQL layer handles fallback when a translation is missing — nothing in this app does.
-- **Account hub.** `/account` is one federated `MyAccount` query (guest + reservations subgraphs in one round-trip) feeding four sticky-sidebar sections: Profile, Addresses, Payment methods, Recent trips. Profile edits, address add / edit / remove / set-primary, and payment add / remove / set-default each post to a Server Action that calls the matching mutation and runs `revalidatePath('/account')`. Validation is pure (`lib/account.ts` — phone, ISO date, country code, address shape, card-expiry math) so vitest covers every branch. The header's "Hi, {firstName}" greeting links here.
+- **Account hub.** `/account` is one federated `MyAccount` query (guest + reservations subgraphs in one round-trip) feeding four sticky-sidebar sections: Profile, Addresses, Payment methods, Recent trips. Profile edits, address add / edit / remove / set-primary, and payment add / remove / set-default each post to a Server Action that calls the matching mutation and runs `revalidatePath('/account')`. Validation is pure (`lib/account.ts` — phone, ISO date, country code, address shape, card-expiry math) so vitest covers every branch. The header's "Hi, {firstName}" greeting links here. The sidebar (`AccountSidebar`) is route-aware — section anchors rewrite to `/account#<id>` when mounted on a subpage so clicking *Profile* from `/account/loyalty` actually takes you back, and the matching subpage entry gets a goldDeep `aria-current="page"` indicator. Every subpage hero also carries an `AccountBreadcrumb` (← Back to account + small-caps trail) for redundant, can't-miss back-navigation.
 - **Trip detail.** `/trips/[id]` is the post-booking surface: itinerary, charges, special requests, payment summary, plus a sticky action sidebar that gates **Online check-in** (collapsing form for document type / number / ETA) and **Cancel reservation** on the server-side `canCheckInOnline` and `isRefundable` flags. Mutations (`mobileCheckIn`, `cancelReservation`) generate per-call idempotency keys via `crypto.randomUUID` and run `revalidatePath('/trips/[id]')`. When the reservation is `CHECKED_IN`, a Digital Key card surfaces the door code + expiry.
 - **Featured Hotels Book Now.** Each card on the home featured strip has a **Book Now** CTA that deep-links to `/hotels/<id>#rooms` — the existing `HotelTabs` component reads `window.location.hash` on mount, so guests land on Rooms & Suites with the tab already activated.
 
 ## Testing
 
 ```bash
-npm test           # full vitest suite (500 tests, <1s)
+npm test           # full vitest suite (507 tests, <1s)
 npm run test:watch # watch mode
 ```
 
 | Module | Tests | What it covers |
 |---|---|---|
 | `lib/account.test.ts` | 54 | Member-since formatter (UTC-stable), card-expiry math, primary-first sort, optional phone, DOB age window, country code, address-form composite |
+| `lib/accountNav.test.ts` | 7 | Sidebar href resolution (anchor → `/account#<id>` from subpages, explicit href passthrough) + active-state rules (subpage match only, never anchor items) |
 | `lib/trip.test.ts` | 15 | Stay-window formatter, cancellation-deadline parsing, mobile-check-in form validator (document type / number / ETA HH:MM) |
 | `lib/bookingValidation.test.ts` | 79 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
 | `lib/meetings.test.ts` | 43 | Setup labels, capacity-fit (snug-not-largest), search input validation + wire shape, match-score caps, RFP wizard step validators, draft-to-input transformer, status tone bucketing, cancel eligibility |
@@ -254,7 +255,10 @@ src/
 │   ├── HotelTabs.tsx                    ARIA tab swap on /hotels/[id]
 │   ├── SignInForm.tsx · SignUpForm.tsx  auth forms (useFormState)
 │   ├── SignInOrJoin.tsx                 header dropdown for auth state
-│   ├── AccountSidebar.tsx               sticky in-page nav for /account
+│   ├── AccountSidebar.tsx               sticky route-aware nav across the /account hub
+│                                        (active-state on the current subpage, hash items
+│                                        rewrite to /account#<id> from subpages)
+│   ├── AccountBreadcrumb.tsx            "← Back to account" + breadcrumb for subpage heroes
 │   ├── AccountSections.tsx              shared Section/Field/EmptyState shell + read-only Trips
 │   ├── ProfileEditor.tsx                Profile edit toggle (phone / DOB / nationality)
 │   ├── AddressesManager.tsx             Addresses add/edit/remove/set-primary
@@ -290,6 +294,7 @@ src/
 │   ├── authSession.ts                   httpOnly session-cookie read/write
 │   ├── account.ts                       pure helpers: member-since, card expiry, primary-first sort, address validators
 │   ├── accountActions.ts                server actions: profile + address + payment mutations
+│   ├── accountNav.ts                    pure helpers: sidebar href resolution + active-state rules
 │   ├── trip.ts                          pure helpers: stay-window, cancellation deadline, check-in form validator
 │   ├── tripActions.ts                   server actions: mobileCheckIn + cancelReservation
 │   └── tripsActions.ts                  server action: find by confirmation #

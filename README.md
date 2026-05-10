@@ -26,6 +26,10 @@ Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federa
 | `/account` | Signed-in account hub — profile · addresses · payment methods · recent trips, all editable inline (sticky-sidebar layout, Server Actions back add/edit/remove + set-primary/default flows) | guest · reservations |
 | `/trips` | Signed-in: list of `myReservations` (each row links to detail). Signed-out: public confirmation-number lookup. | reservations · property |
 | `/trips/[id]` | Trip detail — itinerary + status-aware actions (Online check-in, Cancel reservation), digital key when CHECKED_IN, charges + special requests + cancellation summary | reservations · property |
+| `/meetings` | Meetings & Events discovery — cross-hotel `searchEventSpaces` with capacity-fit ranked venue cards | meetings · property |
+| `/meetings/[hotelId]/[spaceId]` | Venue detail — capacity matrix, full rate card, technical specs, A/V inventory, catering menus, RFP CTA | meetings · property |
+| `/meetings/[hotelId]/[spaceId]/rfp` | Five-step **Request a Proposal** wizard (sign-in gated) — submits via `submitRFP`, routes to `/account/events` on success | meetings · guest |
+| `/account/events` | Signed-in: list of `myRFPs` with status timeline, hotel proposals, cancel-RFP dialog. | meetings · property |
 | `/stories` | Article list with category filter | content |
 | `/stories/[slug]` | Article detail with author, tags, related hotels | content, property |
 | `/offers` | Active deal spotlights | content, property |
@@ -74,6 +78,22 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
   a flat 0.007/unit-currency discount as `rateBreakdown.loyaltyDiscount`
   — a per-currency `pointsValuation(currency)` server query is the
   next refinement.
+- **Meetings & Events funnel.** `/meetings` runs `searchEventSpaces`
+  across every property, ranking hits by capacity-fit (`capacityFit`
+  picks the *snuggest* layout that meets headcount, not the largest).
+  Venue detail shows a highlighted capacity matrix, rate card,
+  technical specs, A/V inventory, and the hotel's catering menus.
+  *Request a Proposal* opens a sign-in gated five-step wizard
+  (basics · spaces · catering · contact · review) seeded with the
+  search context + the guest's profile contact info. Submit calls
+  `submitRfpAction` (carries bearer token, mints idempotency UUID),
+  routes to `/account/events?ref=<rfpNumber>` where a celebratory
+  banner pins the new RFP, and the timeline + hotel proposals panel
+  surfaces every reply as the planning team responds. The existing
+  `/hotels/[id]` Meetings tab now deep-links each venue card into
+  the new flow. Pure helpers (`lib/meetings.ts`) cover capacity
+  math, wizard step validators, status-tone bucketing, and
+  cancel-eligibility under 43 vitest.
 - **Currency conversion.** All 42 currencies the property subgraph references
   are supported in the rate-page dropdown. The pricing subgraph FX-converts
   amounts via USD as the pivot.
@@ -138,7 +158,7 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 ## Testing
 
 ```bash
-npm test           # full vitest suite (457 tests, <1s)
+npm test           # full vitest suite (500 tests, <1s)
 npm run test:watch # watch mode
 ```
 
@@ -147,6 +167,7 @@ npm run test:watch # watch mode
 | `lib/account.test.ts` | 54 | Member-since formatter (UTC-stable), card-expiry math, primary-first sort, optional phone, DOB age window, country code, address-form composite |
 | `lib/trip.test.ts` | 15 | Stay-window formatter, cancellation-deadline parsing, mobile-check-in form validator (document type / number / ETA HH:MM) |
 | `lib/bookingValidation.test.ts` | 79 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
+| `lib/meetings.test.ts` | 43 | Setup labels, capacity-fit (snug-not-largest), search input validation + wire shape, match-score caps, RFP wizard step validators, draft-to-input transformer, status tone bucketing, cancel eligibility |
 | `lib/autocomplete.test.ts` | 17 | Group ordering (city → state → country → hotel), flatten, keyboard wraparound, hotel/city/state/country routing |
 | `lib/countries.test.ts` | ~20 | 53-country invariants, ISO codes, phone codes, zip-pattern correctness |
 | `lib/states.test.ts` | ~12 | Per-country counts (US 51, CA 13, IN 36, AU 8, MX 32, BR 27), case-insensitivity |
@@ -220,6 +241,13 @@ src/
 │   ├── BookingPointsPanel.tsx           "Redeem points" slider + preview
 │   ├── BookingSummarySidebar.tsx        right-column summary on book page
 │                                        (Total reflects loyalty discount)
+│   ├── MeetingsSearchBar.tsx            cross-hotel /meetings search input
+│   ├── EventSpaceCard.tsx               capacity-fit ranked venue card
+│   ├── EventSpaceCapacityMatrix.tsx     setup × capacity matrix w/ snug fit highlight
+│   ├── EventSpaceRateCardView.tsx       full / half / hourly / setup / cleaning rates
+│   ├── RfpWizard.tsx                    five-step Request a Proposal wizard
+│   ├── RfpStatusTimeline.tsx            Submitted → Proposal sent → Accepted milestones
+│   ├── RfpCancelDialog.tsx              cancel-RFP modal with reason
 │   ├── CvvHelper.tsx                    "where's the CVV" popover
 │   ├── RecentlyViewedTracker.tsx        invisible per-page tracker
 │   ├── RecentlyViewedSection.tsx        home-page Recently Viewed island
@@ -253,6 +281,8 @@ src/
 │   ├── bookingValidation.ts             pure form validation + Luhn + FX math
 │   ├── bookingActions.ts                server action: createReservation
 │   ├── loyalty.ts                       points-to-cash + clamp helpers
+│   ├── meetings.ts                      capacity fit math + RFP wizard validators + status helpers
+│   ├── meetingActions.ts                server actions: submitRFP / updateRFP / cancelRFP
 │   ├── recentlyViewed.ts                per-device localStorage list helpers
 │   ├── hotelTabs.ts                     ARIA tab keyboard math + hash parser
 │   ├── auth.ts                          pure validators + Session shape

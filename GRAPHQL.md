@@ -36,6 +36,12 @@ top-level field.
 | Mobile check-in | `/trips/[id]` | [`MOBILE_CHECK_IN_MUTATION`](#mobile_check_in_mutation) | reservations |
 | Cancel reservation | `/trips/[id]` | [`CANCEL_RESERVATION_MUTATION`](#cancel_reservation_mutation) | reservations |
 | Create reservation (Book Now) | `/hotels/[id]/book` | [`CREATE_RESERVATION_MUTATION`](#create_reservation_mutation) | reservations · pricing · loyalty |
+| Meetings discovery (cross-hotel) | `/meetings` | [`MEETINGS_SEARCH_QUERY`](#meetings_search_query) | meetings · property |
+| Venue detail (event space) | `/meetings/[hotelId]/[spaceId]` | [`EVENT_SPACE_DETAIL_QUERY`](#event_space_detail_query) | meetings · property |
+| Submit RFP | `/meetings/[hotelId]/[spaceId]/rfp` | [`SUBMIT_RFP_MUTATION`](#submit_rfp_mutation) | meetings |
+| Update RFP (autosave / edit) | `/meetings/[hotelId]/[spaceId]/rfp` | [`UPDATE_RFP_MUTATION`](#update_rfp_mutation) | meetings |
+| Cancel RFP | `/account/events` | [`CANCEL_RFP_MUTATION`](#cancel_rfp_mutation) | meetings |
+| My RFPs | `/account/events` | [`MY_RFPS_QUERY`](#my_rfps_query) | meetings · property |
 | My profile (booking-page prefill) | `/hotels/[id]/book` (signed-in) | [`ME_PROFILE_QUERY`](#me_profile_query) | guest |
 | Account hub | `/account` | [`MY_ACCOUNT_QUERY`](#my_account_query) | guest · reservations |
 | Update profile (phone / DOB / nationality) | `/account` | [`UPDATE_GUEST_PROFILE_MUTATION`](#update_guest_profile_mutation) | guest |
@@ -1249,6 +1255,234 @@ Sample variables (50,000 pts → −350 EUR off `totalDue`):
     "pointsToRedeem": 50000
   },
   "idempotencyKey": "<crypto.randomUUID()>"
+}
+```
+
+---
+
+## `MEETINGS_SEARCH_QUERY`
+
+**Page:** `/meetings` — discovery surface with editorial hero,
+search bar (start/end/headcount/setup), and a result grid of
+capacity-fit ranked venue cards. Optional `hotelId` URL param
+narrows the search to a single property when the visitor came in
+from `/hotels/[id]` Meetings tab.
+
+**Functionality:** federated `searchEventSpaces` returns
+`EventSpaceSearchHit { hotel, space, matchScore, notes }`. The web
+client then re-sorts by `matchScore` (descending) and runs each hit
+through the pure `capacityFit` helper to render the snug-fit badge
+on every card. The capacity matrix on the venue detail page reuses
+the same helper so the highlighted row is always consistent.
+
+**Subgraphs touched:** `meetings` owns `searchEventSpaces`; `property`
+hydrates the `Hotel` extension via federation `_entities`.
+
+```graphql
+query MeetingsSearch($input: EventSpaceSearchInput!) {
+  searchEventSpaces(input: $input) {
+    totalCount
+    results {
+      matchScore
+      notes
+      hotel {
+        id name slug starRating
+        brand { id name tier accentColor }
+        location { address { city countryCode } }
+        media(first: 1, categories: [EXTERIOR]) { edges { node { url altText } } }
+      }
+      space {
+        id name category
+        areaSqFt areaSqMeters ceilingHeightFt
+        naturalLight blackoutCapable rooms divisible
+        capacityStyles { setup capacity }
+        rateCard {
+          fullDay { amount currency }
+          halfDay { amount currency }
+          currency
+        }
+        images
+      }
+    }
+  }
+}
+```
+
+---
+
+## `EVENT_SPACE_DETAIL_QUERY`
+
+**Page:** `/meetings/[hotelId]/[spaceId]` — full venue detail.
+
+**Functionality:** combines three queries into one federated
+round-trip — `eventSpace(id)` for the venue itself, `hotel(id)` for
+the property header, and `cateringMenus(hotelId)` for the catering
+panel. The page passes the URL-carried `attendees` value into the
+capacity matrix component so the snuggest-fit row is highlighted
+inline.
+
+**Subgraphs touched:** `meetings` (eventSpace + cateringMenus),
+`property` (hotel detail).
+
+```graphql
+query EventSpaceDetail($id: ID!, $hotelId: ID!) {
+  eventSpace(id: $id) {
+    id hotelId name description category
+    areaSqFt areaSqMeters ceilingHeightFt
+    naturalLight blackoutCapable rooms divisible
+    capacityStyles { setup capacity }
+    technicalSpecs {
+      power internetSpeedMbps riggingPoints
+      loadInDoorsHeightFt freightElevator noiseRating
+    }
+    avEquipment {
+      category name model quantity includedInRate
+      rentalCost { amount currency }
+    }
+    cateringRequired
+    rateCard {
+      currency
+      fullDay { amount currency } halfDay { amount currency } hourly { amount currency }
+      setupFee { amount currency } cleaningFee { amount currency }
+      minimumFAndBSpend { amount currency }
+    }
+    images floorPlanUrl
+  }
+  hotel(id: $hotelId) {
+    id name slug starRating
+    brand { id name tier accentColor }
+    location {
+      address { line1 city state countryCode }
+      coordinates { latitude longitude }
+    }
+    media(first: 1, categories: [EXTERIOR]) { edges { node { url altText } } }
+  }
+  cateringMenus(hotelId: $hotelId) {
+    id name description
+    pricePerPerson { amount currency }
+    minimumGuests
+    courses { name description }
+    beverageOptions
+  }
+}
+```
+
+---
+
+## `SUBMIT_RFP_MUTATION`
+
+**Page:** `/meetings/[hotelId]/[spaceId]/rfp` — fired by
+[`submitRfpAction`](./src/lib/meetingActions.ts) on the wizard's
+Review & Submit step. Sign-in is required (the page redirects
+anonymous visitors to `/sign-in` before the wizard renders), so
+the action's `Authorization: Bearer` always carries a real guest
+token. A fresh `idempotencyKey` (UUID) is minted per click; on
+success the action returns the canonical `rfpNumber`
+(`RFP-YYYY-NNNNNN`) which the wizard uses to deep-link into
+`/account/events?ref=<rfpNumber>` for the celebratory landing.
+
+**Subgraphs touched:** `meetings`.
+
+```graphql
+mutation SubmitRFP($input: SubmitRFPInput!, $idempotencyKey: UUID!) {
+  submitRFP(input: $input, idempotencyKey: $idempotencyKey) {
+    __typename
+    ... on RFP { id rfpNumber status submittedAt eventName }
+    ... on ValidationError {
+      code message fieldErrors { field message }
+    }
+    ... on NotFoundError { code message }
+  }
+}
+```
+
+---
+
+## `UPDATE_RFP_MUTATION`
+
+**Functionality:** a partial update on an existing RFP. The current
+wizard submits in one shot; this mutation backs *future* draft
+autosave and the planner's edit-after-feedback workflow. Only the
+fields the caller passes get touched.
+
+**Subgraphs touched:** `meetings`.
+
+```graphql
+mutation UpdateRFP($rfpId: ID!, $input: UpdateRFPInput!) {
+  updateRFP(rfpId: $rfpId, input: $input) {
+    __typename
+    ... on RFP { id status updatedAt }
+    ... on ValidationError {
+      code message fieldErrors { field message }
+    }
+    ... on NotFoundError { code message }
+  }
+}
+```
+
+---
+
+## `CANCEL_RFP_MUTATION`
+
+**Page:** `/account/events` — fired by
+[`cancelRfpAction`](./src/lib/meetingActions.ts) from the
+[`RfpCancelDialog`](./src/components/RfpCancelDialog.tsx) modal.
+Gated client-side by [`isRfpCancellable`](./src/lib/meetings.ts) so
+the button only renders for in-flight statuses (DRAFT, SUBMITTED,
+IN_REVIEW, PROPOSAL_SENT, NEGOTIATING).
+
+**Subgraphs touched:** `meetings`.
+
+```graphql
+mutation CancelRFP($rfpId: ID!, $reason: String) {
+  cancelRFP(rfpId: $rfpId, reason: $reason) {
+    __typename
+    ... on RFP { id status }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on NotFoundError { code message }
+  }
+}
+```
+
+---
+
+## `MY_RFPS_QUERY`
+
+**Page:** `/account/events` — guest's RFP tracking surface (sign-in
+gated). Renders newest-first with status timeline, preferred-hotels
+chips, and an inline panel of hotel proposals (`RFPResponse`s)
+whenever any have arrived.
+
+**Subgraphs touched:** `meetings` is the entry point; `property`
+hydrates the preferred-hotel + proposing-hotel federation
+references.
+
+```graphql
+query MyRFPs($first: Int, $after: String, $status: RFPStatus) {
+  myRFPs(first: $first, after: $after, status: $status) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    edges {
+      cursor
+      node {
+        id rfpNumber status
+        eventName eventType
+        startDate endDate attendees guestRoomsPerNight
+        submittedAt updatedAt
+        preferredHotels {
+          id name location { address { city countryCode } }
+        }
+        responses {
+          id status hotelId
+          hotel { id name }
+          proposedRate { amount currency }
+          proposedFAndBMinimum { amount currency }
+          proposedRoomBlock
+          notes respondedAt validUntil
+        }
+      }
+    }
+  }
 }
 ```
 

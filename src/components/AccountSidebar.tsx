@@ -12,6 +12,7 @@ const ITEMS: Item[] = [
   { id: "payment", label: "Payment methods" },
   { id: "trips", label: "Recent trips" },
   { id: "loyalty", label: "Loyalty hub", href: "/account/loyalty" },
+  { id: "events", label: "Events & RFPs", href: "/account/events" },
 ];
 
 export function AccountSidebar() {

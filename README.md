@@ -19,8 +19,8 @@ Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federa
 | `/hotels` | All hotels grouped by country, with city filter | property |
 | `/hotels/[id]` | Full hotel detail: gallery, rooms, spa experiences, event spaces, reviews, location | property, experiences, meetings |
 | `/hotels/[id]/rates` | Select a Room and Rate — Marriott-style rate-list page with editable stay/guests bar, 42-currency selector, "show with taxes and fees" toggle, expandable room cards (Flexible / Member Exclusive / Package rate plans) | property, pricing |
-| `/hotels/[id]/book` | Complete Your Booking — guest info form (53-country dropdown, country-aware state + zip), payment fields with Luhn-validated card number, room-requests + accessibility, sticky summary sidebar, 14-min hold timer | property, pricing |
-| `/hotels/[id]/book/confirmation` | Booking confirmation with reference number | property |
+| `/hotels/[id]/book` | Complete Your Booking — guest info form (53-country dropdown, country-aware state + zip), payment fields with Luhn-validated card number, room-requests + accessibility, **redeem-points panel for loyalty members**, sticky summary sidebar that reflects the redemption in real time, 14-min hold timer. Submit calls `createReservation` via a Server Action. | property, pricing, reservations |
+| `/hotels/[id]/book/confirmation` | Booking confirmation with the canonical `LUX-YYYY-NNNNNN` reference returned by the resolver | reservations |
 | `/sign-in` | Member sign-in form (email + password) | guest |
 | `/sign-up` | Create-account form (free tier, member rates, points) | guest |
 | `/account` | Signed-in account hub — profile · addresses · payment methods · recent trips, all editable inline (sticky-sidebar layout, Server Actions back add/edit/remove + set-primary/default flows) | guest · reservations |
@@ -54,8 +54,26 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
   server side, so submitting "France", "Telangana", or "FR" all surface
   the right hotels.
 - **End-to-end booking flow.** Search → rate-list → guest+payment form →
-  confirmation. Validation lives in `lib/bookingValidation.ts` (pure, 77
-  tests) so card number / zip / phone / state rules can be reused.
+  `createReservation` → confirmation. Validation lives in
+  `lib/bookingValidation.ts` (pure, 79 tests) so card number / zip /
+  phone / state rules can be reused. Submit posts to
+  `createReservationAction` (server-side) which carries the guest's
+  bearer token, mints a fresh `idempotencyKey`, and threads
+  `pointsToRedeem` through to the federated mutation; the confirmation
+  page renders the canonical `LUX-YYYY-NNNNNN` reference returned by
+  the resolver. Resolver-side errors (room unavailable, validation,
+  authorization) surface inline under the submit button.
+- **Redeem points at checkout.** Signed-in members with a positive
+  loyalty balance see a *Redeem points* slider between guest info and
+  payment. The two-column page is wrapped by `BookingExperience.tsx`
+  which lifts `pointsToRedeem` state so the sticky summary's
+  "Loyalty redemption · N pts · −$X" line and Total update in real
+  time as the slider moves. `pointsToRedeem` is sent on the
+  `createReservation` mutation and surfaced back as
+  `loyaltyContext.pointsRedeemed` on the confirmation. Backend applies
+  a flat 0.007/unit-currency discount as `rateBreakdown.loyaltyDiscount`
+  — a per-currency `pointsValuation(currency)` server query is the
+  next refinement.
 - **Currency conversion.** All 42 currencies the property subgraph references
   are supported in the rate-page dropdown. The pricing subgraph FX-converts
   amounts via USD as the pivot.
@@ -120,7 +138,7 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 ## Testing
 
 ```bash
-npm test           # full vitest suite (426 tests, <1s)
+npm test           # full vitest suite (457 tests, <1s)
 npm run test:watch # watch mode
 ```
 
@@ -128,7 +146,7 @@ npm run test:watch # watch mode
 |---|---|---|
 | `lib/account.test.ts` | 54 | Member-since formatter (UTC-stable), card-expiry math, primary-first sort, optional phone, DOB age window, country code, address-form composite |
 | `lib/trip.test.ts` | 15 | Stay-window formatter, cancellation-deadline parsing, mobile-check-in form validator (document type / number / ETA HH:MM) |
-| `lib/bookingValidation.test.ts` | 77 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
+| `lib/bookingValidation.test.ts` | 79 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
 | `lib/autocomplete.test.ts` | 17 | Group ordering (city → state → country → hotel), flatten, keyboard wraparound, hotel/city/state/country routing |
 | `lib/countries.test.ts` | ~20 | 53-country invariants, ISO codes, phone codes, zip-pattern correctness |
 | `lib/states.test.ts` | ~12 | Per-country counts (US 51, CA 13, IN 36, AU 8, MX 32, BR 27), case-insensitivity |
@@ -195,8 +213,13 @@ src/
 │   ├── HoldTimer.tsx                    14-min countdown on book page
 │   ├── StatementCreditBanner.tsx        Luxe Visa offer banner
 │   ├── MemberRateBanner.tsx             member-exclusive rate notice
-│   ├── BookingForm.tsx                  guest + payment + requests form
+│   ├── BookingExperience.tsx            two-column wrapper that lifts
+│   │                                    pointsToRedeem so form + sidebar share state
+│   ├── BookingForm.tsx                  guest + payment + requests form;
+│   │                                    onSubmit calls createReservationAction
+│   ├── BookingPointsPanel.tsx           "Redeem points" slider + preview
 │   ├── BookingSummarySidebar.tsx        right-column summary on book page
+│                                        (Total reflects loyalty discount)
 │   ├── CvvHelper.tsx                    "where's the CVV" popover
 │   ├── RecentlyViewedTracker.tsx        invisible per-page tracker
 │   ├── RecentlyViewedSection.tsx        home-page Recently Viewed island
@@ -228,6 +251,8 @@ src/
 │   ├── states.ts                        states/provinces for major countries
 │   ├── autocomplete.ts                  destination-suggestion grouping
 │   ├── bookingValidation.ts             pure form validation + Luhn + FX math
+│   ├── bookingActions.ts                server action: createReservation
+│   ├── loyalty.ts                       points-to-cash + clamp helpers
 │   ├── recentlyViewed.ts                per-device localStorage list helpers
 │   ├── hotelTabs.ts                     ARIA tab keyboard math + hash parser
 │   ├── auth.ts                          pure validators + Session shape

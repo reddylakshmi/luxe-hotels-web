@@ -35,6 +35,7 @@ top-level field.
 | Trip detail | `/trips/[id]` | [`RESERVATION_DETAIL_QUERY`](#reservation_detail_query) | reservations · property |
 | Mobile check-in | `/trips/[id]` | [`MOBILE_CHECK_IN_MUTATION`](#mobile_check_in_mutation) | reservations |
 | Cancel reservation | `/trips/[id]` | [`CANCEL_RESERVATION_MUTATION`](#cancel_reservation_mutation) | reservations |
+| Create reservation (Book Now) | `/hotels/[id]/book` | [`CREATE_RESERVATION_MUTATION`](#create_reservation_mutation) | reservations · pricing · loyalty |
 | My profile (booking-page prefill) | `/hotels/[id]/book` (signed-in) | [`ME_PROFILE_QUERY`](#me_profile_query) | guest |
 | Account hub | `/account` | [`MY_ACCOUNT_QUERY`](#my_account_query) | guest · reservations |
 | Update profile (phone / DOB / nationality) | `/account` | [`UPDATE_GUEST_PROFILE_MUTATION`](#update_guest_profile_mutation) | guest |
@@ -54,10 +55,13 @@ top-level field.
 | Inspirations | `/inspirations` (when added) | [`INSPIRATIONS_QUERY`](#inspirations_query) | content |
 
 > **Booking pages.** The Complete Your Booking page (`/hotels/[id]/book`)
-> and its confirmation step both re-use [`RATES_QUERY`](#rates_query) to
-> resolve the room+rate the user picked, plus
-> [`HOTEL_DETAIL_QUERY`](#hotel_detail_query) for the room metadata in the
-> sidebar. They don't introduce new queries.
+> re-uses [`RATES_QUERY`](#rates_query) to resolve the room+rate the user
+> picked, plus [`ME_PROFILE_QUERY`](#me_profile_query) and (signed-in
+> only) `myLoyaltyAccount { loyaltyNumber pointsBalance { available } }`
+> to pre-fill the form and gate the Redeem-points panel. *Submit* posts
+> [`CREATE_RESERVATION_MUTATION`](#create_reservation_mutation) with the
+> guest's bearer token; the confirmation page renders the canonical
+> `LUX-YYYY-NNNNNN` reference returned by the resolver.
 
 ---
 
@@ -1165,6 +1169,86 @@ mutation CancelReservation(
     ... on NotFoundError { code message }
     ... on AuthorizationError { code message }
   }
+}
+```
+
+---
+
+## `CREATE_RESERVATION_MUTATION`
+
+**Page:** `/hotels/[id]/book` — fired by
+[`createReservationAction`](./src/lib/bookingActions.ts) when the guest
+clicks **Book Now** on the Complete Your Booking form.
+
+**Functionality:** create the reservation against the rate the guest
+picked on `/hotels/[id]/rates`. The action:
+
+- carries the guest's bearer token (when signed in) so the resolver
+  can attribute the booking to a `GuestProfile`,
+- mints a fresh `idempotencyKey` (UUID) per click — replays would be
+  deduped by the resolver in production,
+- threads the redeemed-points slider value through as
+  `pointsToRedeem`, which the reservations subgraph applies as a
+  `pointsToRedeem * 0.007` discount in the booking's currency,
+  setting `rateBreakdown.loyaltyDiscount`, reducing
+  `totalDue` / `balanceDue`, and stamping
+  `loyaltyContext.pointsRedeemed` on the response.
+
+On success the action returns the canonical `confirmationNumber`
+(format: `LUX-YYYY-NNNNNN`) which the form passes to
+`/hotels/[id]/book/confirmation`. Resolver-side errors
+(`RoomUnavailableError`, `ValidationError`, `AuthorizationError`,
+`ExternalServiceError`) surface as a red banner under the submit
+button; field errors map under `guest.*` next to their inputs.
+
+**Subgraphs touched:** `reservations` is the entry point; the rate
+breakdown stitches values produced earlier by `pricing`, and a real
+implementation would publish a `points.redeemed` event for `loyalty`
+to debit the balance asynchronously (saga pattern — out of scope for
+the demo, the loyalty subgraph stays the source of truth for the
+actual points balance).
+
+```graphql
+mutation CreateReservation(
+  $input: CreateReservationInput!,
+  $idempotencyKey: UUID!
+) {
+  createReservation(input: $input, idempotencyKey: $idempotencyKey) {
+    __typename
+    ... on Reservation {
+      id
+      confirmationNumber
+      status
+      rateBreakdown {
+        currency
+        loyaltyDiscount { amount currency }
+        totalDue { amount currency }
+      }
+      loyaltyContext { pointsRedeemed pointsToEarn }
+    }
+    ... on RoomUnavailableError { code message }
+    ... on ValidationError { code message fieldErrors { field message } }
+    ... on AuthorizationError { code message }
+    ... on ExternalServiceError { code message }
+  }
+}
+```
+
+Sample variables (50,000 pts → −350 EUR off `totalDue`):
+
+```json
+{
+  "input": {
+    "hotelId": "prop-paris-001",
+    "roomTypeId": "rt-paris-deluxe",
+    "rateToken": "rt-r-rt-paris-deluxe-bar-2026-06-01-2026-06-04-2026-06-01-2026-06-04",
+    "checkIn": "2026-06-01",
+    "checkOut": "2026-06-04",
+    "adults": 2,
+    "loyaltyNumber": "LUX0001234567",
+    "pointsToRedeem": 50000
+  },
+  "idempotencyKey": "<crypto.randomUUID()>"
 }
 ```
 

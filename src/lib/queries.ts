@@ -884,3 +884,114 @@ export const INSPIRATIONS_QUERY = /* GraphQL */ `
     }
   }
 `;
+
+// ── Meetings & Events ────────────────────────────────────────────────────
+
+export const MEETINGS_SEARCH_QUERY = /* GraphQL */ `
+  query MeetingsSearch($input: EventSpaceSearchInput!) {
+    searchEventSpaces(input: $input) {
+      totalCount
+      results {
+        matchScore
+        notes
+        hotel {
+          id
+          name
+          slug
+          starRating
+          brand { id name tier accentColor }
+          location { address { city countryCode } }
+          media(first: 1, categories: [EXTERIOR]) {
+            edges { node { url altText } }
+          }
+        }
+        space {
+          id
+          name
+          category
+          areaSqFt
+          areaSqMeters
+          ceilingHeightFt
+          naturalLight
+          blackoutCapable
+          rooms
+          divisible
+          capacityStyles { setup capacity }
+          rateCard { fullDay { amount currency } halfDay { amount currency } currency }
+          images
+        }
+      }
+    }
+  }
+`;
+
+export const EVENT_SPACE_DETAIL_QUERY = /* GraphQL */ `
+  query EventSpaceDetail($id: ID!, $hotelId: ID!) {
+    eventSpace(id: $id) {
+      id
+      hotelId
+      name
+      description
+      category
+      areaSqFt
+      areaSqMeters
+      ceilingHeightFt
+      naturalLight
+      blackoutCapable
+      rooms
+      divisible
+      capacityStyles { setup capacity }
+      technicalSpecs {
+        power
+        internetSpeedMbps
+        riggingPoints
+        loadInDoorsHeightFt
+        freightElevator
+        noiseRating
+      }
+      avEquipment {
+        category
+        name
+        model
+        quantity
+        includedInRate
+        rentalCost { amount currency }
+      }
+      cateringRequired
+      rateCard {
+        currency
+        fullDay { amount currency }
+        halfDay { amount currency }
+        hourly { amount currency }
+        setupFee { amount currency }
+        cleaningFee { amount currency }
+        minimumFAndBSpend { amount currency }
+      }
+      images
+      floorPlanUrl
+    }
+    hotel(id: $hotelId) {
+      id
+      name
+      slug
+      starRating
+      brand { id name tier accentColor }
+      location {
+        address { line1 city state countryCode }
+        coordinates { latitude longitude }
+      }
+      media(first: 1, categories: [EXTERIOR]) {
+        edges { node { url altText } }
+      }
+    }
+    cateringMenus(hotelId: $hotelId) {
+      id
+      name
+      description
+      pricePerPerson { amount currency }
+      minimumGuests
+      courses { name description }
+      beverageOptions
+    }
+  }
+`;

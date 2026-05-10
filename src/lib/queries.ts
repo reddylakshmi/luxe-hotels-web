@@ -523,6 +523,32 @@ export const CANCEL_RESERVATION_MUTATION = /* GraphQL */ `
   }
 `;
 
+export const CREATE_RESERVATION_MUTATION = /* GraphQL */ `
+  mutation CreateReservation(
+    $input: CreateReservationInput!,
+    $idempotencyKey: UUID!
+  ) {
+    createReservation(input: $input, idempotencyKey: $idempotencyKey) {
+      __typename
+      ... on Reservation {
+        id
+        confirmationNumber
+        status
+        rateBreakdown {
+          currency
+          loyaltyDiscount { amount currency }
+          totalDue { amount currency }
+        }
+        loyaltyContext { pointsRedeemed pointsToEarn }
+      }
+      ... on RoomUnavailableError { code message }
+      ... on ValidationError { code message fieldErrors { field message } }
+      ... on AuthorizationError { code message }
+      ... on ExternalServiceError { code message }
+    }
+  }
+`;
+
 export const RESERVATION_BY_CONFIRMATION_QUERY = /* GraphQL */ `
   query ReservationByConfirmation($confirmationNumber: String!, $guestLastName: String) {
     reservationByConfirmationNumber(

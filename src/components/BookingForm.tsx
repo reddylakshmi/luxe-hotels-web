@@ -30,6 +30,7 @@ import {
 import { CvvHelper } from "./CvvHelper";
 import { BookingPointsPanel } from "./BookingPointsPanel";
 import { clampPointsRedemption } from "@/lib/loyalty";
+import { createReservationAction } from "@/lib/bookingActions";
 import {
   defaultAddressId,
   defaultPaymentMethodId,
@@ -94,9 +95,14 @@ function reducer(state: FormState, action: Action): FormState {
 export function BookingForm({
   bookingHref,
   hotelId,
+  roomTypeId,
   rateToken,
   ratePlanCode,
   roomId,
+  checkIn,
+  checkOut,
+  adults,
+  children,
   prefillGuest,
   signedInLabel,
   savedAddresses = [],
@@ -109,9 +115,17 @@ export function BookingForm({
 }: {
   bookingHref: string;
   hotelId: string;
+  /** Federated roomType.id — distinct from the URL's roomId param when
+   *  the rate-list page used a different identifier; passed through to
+   *  the createReservation mutation. */
+  roomTypeId: string;
   rateToken: string;
   ratePlanCode: string;
   roomId: string;
+  checkIn: string;
+  checkOut: string;
+  adults: number;
+  children: number;
   /** Pre-fill values seeded from the signed-in guest's profile. */
   prefillGuest?: Partial<GuestInformation>;
   /** Optional banner shown above the form when prefill came from a session. */
@@ -211,9 +225,12 @@ export function BookingForm({
   const stateIsDropdown = hasStateDropdown(state.guest.country);
   const detectedBrand = cardBrand(state.payment.cardNumber);
 
-  function onSubmit(e: React.FormEvent) {
+  const [formError, setFormError] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setFormError(null);
 
     const guestResult = validateGuestInformation(state.guest);
     const merged: Record<string, string> = {};
@@ -238,11 +255,41 @@ export function BookingForm({
     }
 
     setErrors({});
-    // For the demo we generate the reference client-side and pass to the
-    // confirmation page via URL. A real flow would POST to a server action.
-    const ref = generateBookingReference();
+
+    // Hand off to the federated createReservation mutation. The server
+    // action carries the guest's bearer token (when signed in), mints a
+    // fresh idempotency UUID, and returns the canonical confirmation
+    // number — which we hand to the confirmation page via URL.
+    const result = await createReservationAction({
+      hotelId,
+      roomTypeId,
+      rateToken,
+      checkIn,
+      checkOut,
+      adults,
+      children: children > 0 ? children : undefined,
+      specialRequests: state.requests.trim()
+        ? [{ category: "OTHER", request: state.requests.trim() }]
+        : undefined,
+      loyaltyNumber: loyalty?.loyaltyNumber || state.guest.memberNumber || null,
+      pointsToRedeem: pointsToRedeem > 0 ? pointsToRedeem : null,
+    });
+
+    if (!result.ok) {
+      setSubmitting(false);
+      setFormError(result.formError);
+      // Surface field errors when the resolver returned them — prefixing
+      // with "guest." since CreateReservationInput maps to those slots.
+      if (result.fieldErrors?.length) {
+        const fieldMap: Record<string, string> = {};
+        for (const fe of result.fieldErrors) fieldMap[`guest.${fe.field}`] = fe.message;
+        setErrors(fieldMap);
+      }
+      return;
+    }
+
     const params = new URLSearchParams({
-      ref,
+      ref: result.confirmationNumber,
       rateToken,
       ratePlanCode,
       roomId,
@@ -250,7 +297,9 @@ export function BookingForm({
       lastName: state.guest.lastName,
       email: state.guest.email,
     });
-    if (pointsToRedeem > 0) params.set("points", String(pointsToRedeem));
+    if (result.pointsRedeemed > 0) {
+      params.set("points", String(result.pointsRedeemed));
+    }
     router.push(`/hotels/${hotelId}/book/confirmation?${params.toString()}`);
   }
 
@@ -717,6 +766,14 @@ export function BookingForm({
           {submitting ? "Booking…" : "Book Now"}
         </button>
       </div>
+      {formError && (
+        <p
+          role="alert"
+          className="mt-3 text-sm text-red-600 border border-red-200 bg-red-50 px-3 py-2 md:text-right"
+        >
+          {formError}
+        </p>
+      )}
 
       {/* ── Hidden context for analytics / form-data submission ── */}
       <input type="hidden" name="rateToken" value={rateToken} />
@@ -727,14 +784,6 @@ export function BookingForm({
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function generateBookingReference(): string {
-  const alpha = "ABCDEFGHIJKLMNPQRSTUVWXYZ";
-  const digits = "0123456789";
-  const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
-  return Array.from({ length: 3 }, () => pick(alpha)).join("") +
-         Array.from({ length: 6 }, () => pick(digits)).join("");
-}
 
 function expiryYears(): number[] {
   const start = new Date().getFullYear();

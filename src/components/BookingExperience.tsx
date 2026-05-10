@@ -97,9 +97,14 @@ export function BookingExperience({
         <BookingForm
           bookingHref={bookingHref}
           hotelId={hotelId}
+          roomTypeId={rateRoom.id}
           rateToken={rateToken}
           ratePlanCode={ratePlanCode}
           roomId={roomId}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          adults={adults}
+          children={children}
           prefillGuest={prefillGuest}
           signedInLabel={signedInLabel}
           savedAddresses={savedAddresses}

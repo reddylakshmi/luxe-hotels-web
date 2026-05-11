@@ -57,6 +57,20 @@ whether the id exists.
 - Anything pretending to be a primary account number, CVV, or
   reversible card material — none of those are on the schema.
 
+### Server-side batching (DataLoader)
+
+A few of the highest-cardinality nested fields are backed by
+`@DgsDataLoader` beans on the property subgraph — the client can
+request them freely without worrying about N+1:
+
+| Field | Behavior |
+|---|---|
+| `Hotel.brand` | All hotels in a single query batch into one brand lookup |
+| `Hotel.roomTypes` | All hotels in a single query batch into one room-type lookup |
+| Federation `_entities` on `Hotel` | Foreign subgraphs' Hotel refs hydrate in one batched call |
+
+That means queries like `featuredHotels(first: 9) { brand { tier } roomTypes { id name } }` cost the same backend round-trip count whether `first` is 1 or 100. Other subgraphs still use the synchronous per-call path; safe today (mock data), worth knowing if you write a query that loops a list field heavily.
+
 ---
 
 ## Table of contents

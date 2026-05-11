@@ -155,6 +155,55 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 - **Trip detail.** `/trips/[id]` is the post-booking surface: itinerary, charges, special requests, payment summary, plus a sticky action sidebar that gates **Online check-in** (collapsing form for document type / number / ETA) and **Cancel reservation** on the server-side `canCheckInOnline` and `isRefundable` flags. Mutations (`mobileCheckIn`, `cancelReservation`) generate per-call idempotency keys via `crypto.randomUUID` and run `revalidatePath('/trips/[id]')`. When the reservation is `CHECKED_IN`, a Digital Key card surfaces the door code + expiry.
 - **Featured Hotels Book Now.** Each card on the home featured strip has a **Book Now** CTA that deep-links to `/hotels/<id>#rooms` — the existing `HotelTabs` component reads `window.location.hash` on mount, so guests land on Rooms & Suites with the tab already activated.
 
+## Security — how the web interacts with the gateway gates
+
+The federated platform enforces **five layered controls** server-side
+(see [`luxe-hotels-graphqlwithJava/README.md` ▸ Security](../luxe-hotels-graphqlwithJava/README.md#security)).
+None of them live in this Next.js app — the web is a *consumer* of the
+gateway contract. Here's what that means for the front-end code:
+
+- **JWT propagation.** `src/lib/graphqlAuthed.ts` is the only path that
+  adds `Authorization: Bearer <token>` from the httpOnly `luxe_session`
+  cookie. Public pages (`/`, `/hotels`, `/stories`) use `gqlFetch`;
+  protected surfaces (`/account/*`, `/trips/*`, `/meetings/.../rfp`)
+  use `gqlFetchAuthed`. Anything in between is a bug.
+- **Field selection respects `@auth`.** The `MY_ACCOUNT_QUERY` and
+  `ME_PROFILE_QUERY` request `phone`, `dateOfBirth`, etc. on
+  `GuestProfile` — all `@auth(requires: GUEST)` server-side. They only
+  resolve over `gqlFetchAuthed`. `PaymentMethod.pspToken` (the
+  `@auth(requires: ADMIN)` vault key) is **never selected** by any
+  web query — it has no UI surface and shouldn't.
+- **PCI never enters the bundle.** Card number, CVV, full token —
+  none of these are on the schema, none are persisted in cookies,
+  none cross `/api`. The booking form's payment fields go straight
+  to `createReservation` via the Server Action and the response carries
+  only the truncated `lastFour` back.
+- **Cross-tenant returns null.** Server-side row-level checks return
+  `null` (not an error) when a signed-in guest tries to load another
+  guest's reservation by id. The trip-detail page renders the
+  "reservation unavailable" path on null, which doubles as the legit
+  "expired link / wrong id" case — same shape, no enumeration leak.
+- **Rate-limit & complexity errors.** A burst can return HTTP 429
+  with `extensions.code = RATE_LIMITED`; a giant query returns
+  `QUERY_TOO_COMPLEX` / `QUERY_TOO_DEEP`. `gqlFetch` surfaces the
+  message; routes that hit these are bugs in *our* code, not the user
+  — they should never reach a guest. **Open follow-up**: surface
+  these as a graceful "Slow down" banner instead of the generic
+  error page when they do leak through.
+- **Persisted queries roadmap.** Today the web sends inline queries
+  via POST. When the router flips `persisted_queries.safelist.enabled`
+  to true in production, every operation in `src/lib/queries.ts` must
+  be registered first. Plan: add a `npm run query:publish` script
+  that uploads to Apollo's registry as part of CI. Until then, the
+  router's `log_unknown: true` setting will report any new query
+  that ships without a manifest entry.
+
+The header `My Trips` / `Hi, {firstName}` chip is the visible auth
+indicator. Sign-out → cookie deleted → all `gqlFetchAuthed` calls go
+out without the header → server returns either anonymous-safe data
+or `UNAUTHORIZED`. The redirect-to-`/sign-in?returnTo=…` pattern on
+every protected page ensures the round-trip is seamless.
+
 ## Testing
 
 ```bash

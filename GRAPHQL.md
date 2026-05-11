@@ -18,6 +18,47 @@ top-level field.
 
 ---
 
+## Security envelope
+
+The federated platform enforces field-level + row-level authorization,
+query complexity caps, and per-request rate limits server-side. The
+full breakdown lives in the
+[backend README ▸ Security](../luxe-hotels-graphqlwithJava/README.md#security).
+What every query in this document has to respect:
+
+| Surface | Path | Notes |
+|---|---|---|
+| Public reads | `gqlFetch` | `HOME_QUERY`, `HOTEL_DETAIL_QUERY`, `STORIES_*`, `OFFERS_QUERY`, `MEETINGS_SEARCH_QUERY`, etc. |
+| Authed reads | `gqlFetchAuthed` | Anything that selects `phone` / `dateOfBirth` / `nationality` / `externalIds` on `GuestProfile`, anything on `PaymentMethod`, all `myXxx` queries, all RFP queries |
+| Authed mutations | Server actions | `signOut`, profile / address / payment / saved-hotel mutations, `createReservation`, `submitRFP`, `cancelRFP`, etc. |
+
+### New error codes (in `extensions.code`)
+
+| Code | When | Where it surfaces |
+|---|---|---|
+| `UNAUTHORIZED` | Anonymous request hit an `@auth`-gated field or resolver that calls `auth.requireAuth()` | inline error on the relevant field path |
+| `FORBIDDEN` | Authenticated request but role too low for the `@auth(requires: ROLE)` gate (e.g. guest asking for `PaymentMethod.pspToken`) | inline error on the field path |
+| `QUERY_TOO_COMPLEX` | Cost-scored AST exceeds `luxe.security.max-complexity` (default 1000) | top-level error, query never executes |
+| `QUERY_TOO_DEEP` | Selection nesting exceeds `luxe.security.max-depth` (default 10) | top-level error |
+| `RATE_LIMITED` | Per-user (`user:<guestId>`) or per-IP token bucket exhausted | HTTP 429 with structured body — `gqlFetch` throws |
+
+Row-level rejection (e.g. trying to load another guest's reservation
+by id) returns `null` with **no error** — same shape as a genuinely-
+missing row, on purpose, so id-walking can't distinguish "yours" from
+"theirs". Treat `null` as "unavailable" everywhere; never reveal
+whether the id exists.
+
+### Sensitive fields you should *never* request
+
+- `PaymentMethod.pspToken` (`@auth(requires: ADMIN)`) — vault key, has
+  no UI use case. The booking flow's `createReservation` mutation
+  generates a tokenization round-trip server-side; the client never
+  sees the token at all.
+- Anything pretending to be a primary account number, CVV, or
+  reversible card material — none of those are on the schema.
+
+---
+
 ## Table of contents
 
 | Functionality | Page | Query | Subgraphs touched |

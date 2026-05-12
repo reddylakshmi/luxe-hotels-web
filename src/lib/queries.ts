@@ -60,6 +60,17 @@ export const HOME_QUERY = /* GraphQL */ `
       tagline { text }
       pillars { code title { text } description { text } icon }
     }
+
+    # Powers the home-page Special Rate dropdown. Small (5 items),
+    # cacheable, and the labels live next to the matching
+    # RatePlanType enum so swapping locale or copy is one resolver
+    # edit rather than a code change in the bundle.
+    specialRates {
+      code
+      label
+      description
+      requiresCode
+    }
   }
 `;
 
@@ -892,6 +903,17 @@ export const INSPIRATIONS_QUERY = /* GraphQL */ `
       approxBudget { amount currency }
       recommendedDays
       featuredHotels { id name }
+    }
+  }
+`;
+
+export const SPECIAL_RATES_QUERY = /* GraphQL */ `
+  query SpecialRates {
+    specialRates {
+      code
+      label
+      description
+      requiresCode
     }
   }
 `;

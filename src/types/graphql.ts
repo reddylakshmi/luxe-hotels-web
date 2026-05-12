@@ -466,4 +466,12 @@ export type HomeData = {
   travelInspirations: Inspiration[];
   dealSpotlights: DealSpotlight[];
   brandStory: BrandStory;
+  specialRates: SpecialRate[];
+};
+
+export type SpecialRate = {
+  code: string;
+  label: string;
+  description: string;
+  requiresCode: boolean;
 };

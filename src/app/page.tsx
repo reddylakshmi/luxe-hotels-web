@@ -35,7 +35,7 @@ export default async function HomePage() {
 
   return (
           <>
-            <Hero />
+            <Hero specialRates={data!.specialRates} />
 
             {/* Featured hotels */}
             <section className="container-x py-24">

@@ -1,6 +1,7 @@
 import { SearchBar } from "./SearchBar";
+import type { SpecialRate } from "./SpecialRatePicker";
 
-export function Hero() {
+export function Hero({ specialRates }: { specialRates?: SpecialRate[] }) {
   return (
           <section
                   className="relative h-[78vh] min-h-[560px] w-full text-cream overflow-hidden"
@@ -25,7 +26,11 @@ export function Hero() {
                 </p>
               </div>
               <div className="fade-rise" style={{ animationDelay: "120ms" }}>
-                <SearchBar variant="compact" />
+                {/* Home page gets the full picker stack — Destination,
+                    Stay dates, Rooms & Guests, Special Rate, Use Points
+                    — populated from the federated specialRates catalogue
+                    when the home query fetched it. */}
+                <SearchBar variant="full" specialRates={specialRates} />
               </div>
             </div>
           </section>

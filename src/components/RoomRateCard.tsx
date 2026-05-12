@@ -24,7 +24,11 @@ export function RoomRateCard({
   checkOut,
   adults,
   children,
+  childAges,
   rooms,
+  specialRateCode,
+  corporateCode,
+  usePoints,
   defaultExpanded = false,
 }: {
   room: RoomAvailability;
@@ -36,12 +40,22 @@ export function RoomRateCard({
   checkOut: string;
   adults: number;
   children: number;
+  /** Per-child ages from the GuestPicker. Carried through to the
+   *  Book Now deep-link so the booking summary surfaces the same
+   *  shape the guest configured. */
+  childAges?: number[];
   /** Number of rooms the guest selected on the search bar. Threaded
    *  through to the Book Now deep-link so the booking page can
    *  multiply the rate charges accordingly — without this, the
    *  booking sidebar always showed `1 room` regardless of the
    *  picker's value. */
   rooms: number;
+  /** Home-page Special Rate picker selection (e.g. AAA_CAA).
+   *  Forwarded onto every Book Now link so /book can render the
+   *  same chip + persist the choice with the reservation. */
+  specialRateCode?: string;
+  corporateCode?: string;
+  usePoints?: boolean;
   /**
    * If true the rate-plan list opens on first render and the card
    * auto-scrolls into view. Used when the user clicks "Check rates" on a
@@ -164,7 +178,11 @@ export function RoomRateCard({
                 checkOut={checkOut}
                 adults={adults}
                 children={children}
+                childAges={childAges}
                 rooms={rooms}
+                specialRateCode={specialRateCode}
+                corporateCode={corporateCode}
+                usePoints={usePoints}
               />
             ))}
           </ul>
@@ -193,7 +211,11 @@ function RateOptionRow({
   checkOut,
   adults,
   children,
+  childAges,
   rooms,
+  specialRateCode,
+  corporateCode,
+  usePoints,
 }: {
   rate: Rate;
   isMostPopular: boolean;
@@ -205,24 +227,42 @@ function RateOptionRow({
   checkOut: string;
   adults: number;
   children: number;
+  childAges?: number[];
   rooms: number;
+  specialRateCode?: string;
+  corporateCode?: string;
+  usePoints?: boolean;
 }) {
   const [showRateDetails, setShowRateDetails] = useState(false);
   const price = getDisplayPrice(rate, showTaxes, nights);
   const isMember = rate.ratePlan.type === "MEMBER_RATE";
 
-  const bookHref =
-    `/hotels/${hotelId}/book?` +
-    new URLSearchParams({
-      rateToken: rate.rateToken,
-      roomId,
-      ratePlanCode: rate.ratePlan.code,
-      checkIn,
-      checkOut,
-      adults: String(adults),
-      children: String(children),
-      rooms: String(rooms),
-    }).toString();
+  const bookParams = new URLSearchParams({
+    rateToken: rate.rateToken,
+    roomId,
+    ratePlanCode: rate.ratePlan.code,
+    checkIn,
+    checkOut,
+    adults: String(adults),
+    children: String(children),
+    rooms: String(rooms),
+  });
+  // Carry the home-page picker selections forward so the booking
+  // page can show the same chips + (eventually) submit them on
+  // createReservation. Without these the booking sidebar lost
+  // the user's choice three screens upstream.
+  if (childAges && childAges.length > 0) {
+    bookParams.set("childAges", childAges.join(","));
+  }
+  if (specialRateCode && specialRateCode !== "BEST_AVAILABLE") {
+    bookParams.set("specialRateCode", specialRateCode);
+  }
+  if (corporateCode && specialRateCode === "CORPORATE") {
+    bookParams.set("corporateCode", corporateCode);
+  }
+  if (usePoints) bookParams.set("usePoints", "true");
+
+  const bookHref = `/hotels/${hotelId}/book?${bookParams.toString()}`;
 
   return (
     <li className="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_auto] gap-4 p-6 items-center">

@@ -187,7 +187,11 @@ export default async function RatesPage({
             checkOut={stay.checkOut}
             adults={guests.adults}
             children={guests.children}
+            childAges={guests.childAges}
             rooms={guests.rooms}
+            specialRateCode={specialRateCode}
+            corporateCode={corporateCode}
+            usePoints={usePoints}
           />
         )}
       </section>

@@ -207,6 +207,9 @@ export default async function SearchPage({
                                             children: input.children,
                                             childAges: input.childAges,
                                           }}
+                                          specialRateCode={input.specialRateCode}
+                                          corporateCode={input.corporateCode}
+                                          usePoints={input.usePoints}
                                   />
                           ))}
                         </div>

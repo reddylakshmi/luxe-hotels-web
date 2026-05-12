@@ -105,8 +105,46 @@ describe("validateSearchSubmit", () => {
         destination: "Tokyo",
         checkIn: "2026-08-01",
         checkOut: "2026-08-02",
+        // The default test fixtures here use 2026 dates which are
+        // in the future from the suite's deterministic baseline,
+        // so the past-date guard doesn't fire.
+        today: "2025-01-01",
       }),
     ).toEqual({});
+  });
+
+  it("rejects check-in dates in the past", () => {
+    // The today param is pinned so the test stays deterministic
+    // regardless of when CI runs. Real callers omit it and the
+    // validator reads UTC today on its own.
+    const errors = validateSearchSubmit({
+      destination: "Tokyo",
+      checkIn: "2026-01-01",
+      checkOut: "2026-01-05",
+      today: "2026-05-15",
+    });
+    expect(errors.checkIn).toMatch(/can't be in the past/i);
+  });
+
+  it("accepts a check-in on today exactly", () => {
+    expect(
+      validateSearchSubmit({
+        destination: "Tokyo",
+        checkIn: "2026-05-15",
+        checkOut: "2026-05-16",
+        today: "2026-05-15",
+      }),
+    ).toEqual({});
+  });
+
+  it("accepts a check-in one day before today is rejected", () => {
+    const errors = validateSearchSubmit({
+      destination: "Tokyo",
+      checkIn: "2026-05-14",
+      checkOut: "2026-05-16",
+      today: "2026-05-15",
+    });
+    expect(errors.checkIn).toMatch(/past/i);
   });
 
   it("treats null / undefined inputs the same as empty strings", () => {

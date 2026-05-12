@@ -15,6 +15,9 @@ export function HotelListItem({
                                 stay,
                                 guests,
                                 currency,
+                                specialRateCode,
+                                corporateCode,
+                                usePoints,
                               }: {
   hotel: HotelCard;
   nights: number;
@@ -27,6 +30,12 @@ export function HotelListItem({
   stay: StayWindow;
   guests: GuestState;
   currency?: string;
+  /** Home-page Special Rate picker selection (e.g. AAA_CAA). When
+   *  set, threads through every outbound link so the rate-list +
+   *  booking surfaces stay aware of it. */
+  specialRateCode?: string;
+  corporateCode?: string;
+  usePoints?: boolean;
 }) {
   const img = hotel.media?.edges?.[0]?.node?.url;
   const city = hotel.location?.address?.city;
@@ -35,8 +44,9 @@ export function HotelListItem({
   const total = lowest && nights > 0 ? Number(lowest.amount) : null;
   const perNight = total !== null ? total / nights : null;
 
-  const reservationLink = stayLink(`/hotels/${hotel.id}/rates`, { stay, guests, currency });
-  const detailLink = stayLink(`/hotels/${hotel.id}`, { stay, guests, currency });
+  const linkCtx = { stay, guests, currency, specialRateCode, corporateCode, usePoints };
+  const reservationLink = stayLink(`/hotels/${hotel.id}/rates`, linkCtx);
+  const detailLink = stayLink(`/hotels/${hotel.id}`, linkCtx);
 
   const badges: string[] = [];
   if (hotel.hasFreeBreakfast) badges.push("Free breakfast");

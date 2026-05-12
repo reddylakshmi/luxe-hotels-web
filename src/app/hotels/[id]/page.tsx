@@ -36,7 +36,17 @@ export default async function HotelDetailPage({
   const stay = resolveStay({ checkIn: pick("checkIn"), checkOut: pick("checkOut") });
   const guests = guestsFrom(searchParams);
   const currency = pick("currency");
-  const stayQuery = serializeStayLink({ stay, guests, currency });
+  // Special-rate picker selections also forward — without these
+  // the user picked AAA/CAA on / and saw the rate page open under
+  // the default rate filter.
+  const specialRateCode = pick("specialRateCode");
+  const corporateCode = pick("corporateCode");
+  const usePoints =
+    pick("usePoints") === "true" || pick("usePoints") === "1";
+  const stayQuery = serializeStayLink({
+    stay, guests, currency,
+    specialRateCode, corporateCode, usePoints,
+  });
 
   const heroUrl = imageUrl(h.media?.edges?.[0]?.node?.url, { w: 1920, h: 1080 });
   const galleryUrls = h.media?.edges?.slice(1, 7).map((e) => imageUrl(e.node.url, { w: 600, h: 450 })) ?? [];

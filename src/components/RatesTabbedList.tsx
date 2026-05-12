@@ -24,7 +24,11 @@ export function RatesTabbedList({
   checkOut,
   adults,
   children,
+  childAges,
   rooms,
+  specialRateCode,
+  corporateCode,
+  usePoints,
 }: {
   roomsByTab: Record<RateTabId, RoomAvailability[]>;
   focusRoomId?: string | null;
@@ -36,7 +40,11 @@ export function RatesTabbedList({
   checkOut: string;
   adults: number;
   children: number;
+  childAges?: number[];
   rooms: number;
+  specialRateCode?: string;
+  corporateCode?: string;
+  usePoints?: boolean;
 }) {
   // Seed from the URL hash so deep-links (?#deals) land on the
   // right tab on first render. Falls through to "standard" on
@@ -84,7 +92,11 @@ export function RatesTabbedList({
               defaultExpanded={focusRoomId === room.roomType.id}
               adults={adults}
               children={children}
+              childAges={childAges}
               rooms={rooms}
+              specialRateCode={specialRateCode}
+              corporateCode={corporateCode}
+              usePoints={usePoints}
             />
           ))
         )}

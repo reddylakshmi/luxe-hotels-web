@@ -15,6 +15,15 @@ export type StayLinkContext = {
    *  the page default; including it in the URL means the rate page
    *  opens in the same currency the user already chose. */
   currency?: string;
+  /** RatePlanType code from the home-page Special Rate picker
+   *  (e.g. AAA_CAA, SENIOR). Omitted when default
+   *  (BEST_AVAILABLE) so the URL stays tidy. */
+  specialRateCode?: string;
+  /** Free-text Corp/Promo code captured when specialRateCode is
+   *  CORPORATE. */
+  corporateCode?: string;
+  /** True when the guest elected "Use Points / Awards". */
+  usePoints?: boolean;
 };
 
 /**
@@ -37,6 +46,16 @@ export function serializeStayLink(ctx: StayLinkContext): string {
     params.set(k, v);
   }
   if (ctx.currency) params.set("currency", ctx.currency);
+  // Carry the home-page picker selections forward. Default
+  // BEST_AVAILABLE is treated as "no filter" so the URL stays
+  // tidy on every link that has no explicit selection.
+  if (ctx.specialRateCode && ctx.specialRateCode !== "BEST_AVAILABLE") {
+    params.set("specialRateCode", ctx.specialRateCode);
+  }
+  if (ctx.corporateCode && ctx.specialRateCode === "CORPORATE") {
+    params.set("corporateCode", ctx.corporateCode);
+  }
+  if (ctx.usePoints) params.set("usePoints", "true");
   return params.toString();
 }
 

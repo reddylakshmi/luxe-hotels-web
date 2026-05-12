@@ -1,4 +1,4 @@
-// Pure validator for the home-page search bar. Three rules:
+// Pure validator for the home-page search bar. Four rules:
 //   1. Destination is required — the autocomplete supports typing
 //      free-text + selecting a suggestion; either way `destination`
 //      must end up non-empty.
@@ -8,6 +8,10 @@
 //      but a paste / edge-case could deliver YYYY-MM-DD strings
 //      that don't actually exist (e.g. 2026-02-30) — Date.parse
 //      catches those.
+//   4. Check-in must be today or later. You can't book a hotel
+//      for a date that's already in the past — Marriott's reference
+//      surfaces this inline, so we do too. The `today` param is
+//      threaded for tests so they can pin a deterministic clock.
 //
 // Returns a field-keyed error map. Empty object means "submit OK".
 
@@ -15,6 +19,9 @@ export type SearchSubmitInput = {
   destination?: string | null;
   checkIn?: string | null;
   checkOut?: string | null;
+  /** Pin "today" for deterministic tests. Production callers omit
+   *  and the validator reads the current date in UTC. */
+  today?: string;
 };
 
 export type SearchSubmitErrors = Partial<
@@ -33,11 +40,16 @@ export function validateSearchSubmit(
 
   const checkIn = (input.checkIn ?? "").trim();
   const checkOut = (input.checkOut ?? "").trim();
+  const today = (input.today ?? todayISO()).trim();
 
   if (!checkIn) {
     errors.checkIn = "Pick a check-in date.";
   } else if (!isParseableDate(checkIn)) {
     errors.checkIn = "Check-in isn't a valid date.";
+  } else if (checkIn < today) {
+    // YYYY-MM-DD lex-orders the same as calendar-orders, so a
+    // direct string compare is correct and avoids timezone games.
+    errors.checkIn = "Check-in can't be in the past.";
   }
 
   if (!checkOut) {
@@ -59,6 +71,17 @@ export function validateSearchSubmit(
   }
 
   return errors;
+}
+
+/** UTC-stable today in YYYY-MM-DD. UTC avoids the "user in
+ *  Auckland just past midnight UTC books for yesterday LA-time"
+ *  edge case where local-tz arithmetic disagrees with the server. */
+function todayISO(): string {
+  const d = new Date();
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /**

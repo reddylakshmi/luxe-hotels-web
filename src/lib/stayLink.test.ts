@@ -38,6 +38,44 @@ describe("serializeStayLink", () => {
     const qs = serializeStayLink({ stay, guests: DEFAULT_GUESTS });
     expect(qs).not.toContain("currency=");
   });
+
+  it("carries specialRateCode through when not the default", () => {
+    const qs = serializeStayLink({
+      stay, guests: DEFAULT_GUESTS, specialRateCode: "AAA_CAA",
+    });
+    expect(qs).toContain("specialRateCode=AAA_CAA");
+  });
+
+  it("omits specialRateCode when it's the default BEST_AVAILABLE", () => {
+    // BEST_AVAILABLE == "no filter applied" — keeps URLs tidy on
+    // the common case where the guest didn't pick anything.
+    const qs = serializeStayLink({
+      stay, guests: DEFAULT_GUESTS, specialRateCode: "BEST_AVAILABLE",
+    });
+    expect(qs).not.toContain("specialRateCode=");
+  });
+
+  it("carries corporateCode only when paired with CORPORATE rate", () => {
+    const withCorp = serializeStayLink({
+      stay, guests: DEFAULT_GUESTS,
+      specialRateCode: "CORPORATE", corporateCode: "ACME-2026",
+    });
+    expect(withCorp).toContain("specialRateCode=CORPORATE");
+    expect(withCorp).toContain("corporateCode=ACME-2026");
+
+    const orphanCode = serializeStayLink({
+      stay, guests: DEFAULT_GUESTS,
+      specialRateCode: "AAA_CAA", corporateCode: "leftover-stale-value",
+    });
+    expect(orphanCode).not.toContain("corporateCode=");
+  });
+
+  it("carries usePoints=true when set", () => {
+    const on = serializeStayLink({ stay, guests: DEFAULT_GUESTS, usePoints: true });
+    expect(on).toContain("usePoints=true");
+    const off = serializeStayLink({ stay, guests: DEFAULT_GUESTS, usePoints: false });
+    expect(off).not.toContain("usePoints=");
+  });
 });
 
 describe("stayLink", () => {

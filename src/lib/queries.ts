@@ -81,7 +81,7 @@ export const SEARCH_HOTELS_QUERY = /* GraphQL */ `
           name
           slug
           starRating
-          # Card tier chip needs only `tier` from the brand subtree —
+          # Card tier chip needs only 'tier' from the brand subtree —
           # name/id/accentColor were unused and added 4 cost per row.
           brand { tier }
           location { address { city countryCode } }

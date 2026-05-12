@@ -38,7 +38,7 @@ What every query in this document has to respect:
 |---|---|---|
 | `UNAUTHORIZED` | Anonymous request hit an `@auth`-gated field or resolver that calls `auth.requireAuth()` | inline error on the relevant field path |
 | `FORBIDDEN` | Authenticated request but role too low for the `@auth(requires: ROLE)` gate (e.g. guest asking for `PaymentMethod.pspToken`) | inline error on the field path |
-| `QUERY_TOO_COMPLEX` | Cost-scored AST exceeds `luxe.security.max-complexity` (default 1000) | top-level error, query never executes |
+| `QUERY_TOO_COMPLEX` | Cost-scored AST exceeds `luxe.security.max-complexity` (default 2000) | top-level error, query never executes |
 | `QUERY_TOO_DEEP` | Selection nesting exceeds `luxe.security.max-depth` (default 10) | top-level error |
 | `RATE_LIMITED` | Per-user (`user:<guestId>`) or per-IP token bucket exhausted | HTTP 429 with structured body — `gqlFetch` throws |
 
@@ -56,6 +56,32 @@ whether the id exists.
   sees the token at all.
 - Anything pretending to be a primary account number, CVV, or
   reversible card material — none of those are on the schema.
+
+### Authoring queries that pass the complexity guardrail
+
+The federated platform scores every incoming query and rejects
+anything above the configured `max-complexity` (currently **2000**).
+Score = field count × pagination multiplier (see backend README ▸
+Performance). Two real product queries hit the limit during routine
+browsing and had to be trimmed:
+
+- **`BRAND_DETAIL_QUERY`** — `featuredHotels(first: 12)` was wider
+  than the page rendered (`.slice(0, 6)`); fields like `altText`,
+  `hasSpa`, `hasPool` were requested but never displayed. Each
+  redundant field multiplies by the parent's `first` value.
+- **`SEARCH_HOTELS_QUERY`** — `brand { id name tier accentColor }`
+  fetched four scalars per row when only `tier` was rendered.
+
+**Rules of thumb when adding a list-paginated query:**
+
+1. Match `first:` to what the UI renders, not what you might want
+   later. Lower wins.
+2. Only request fields the component actually reads. `grep` your
+   component file before extending the selection.
+3. Avoid `altText`, `hasXxx`, full `brand { ... }`, full `location
+   { ... coordinates }` subtrees unless the UI uses them.
+4. If a query needs to exceed 2000, split it into two parallel
+   Promise.all-style fetches instead of bumping the threshold.
 
 ### Server-side batching (DataLoader)
 

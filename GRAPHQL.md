@@ -244,11 +244,15 @@ query SearchHotels(
     edges {
       node {
         id name slug starRating
-        brand { id name tier accentColor }
+        # HotelListItem renders only the tier chip from the brand
+        # subtree — fetching id/name/accentColor here added 3 cost
+        # per row × 25-60 rows = ~75-180 extra, sometimes enough to
+        # trip the complexity guardrail.
+        brand { tier }
         location { address { city countryCode } }
         guestRating { overall count }
         media(first: 1, categories: [EXTERIOR]) {
-          edges { node { url altText } }
+          edges { node { url } }
         }
         hasPool hasSpa hasGolf hasFreeBreakfast petsAllowed
         # Federated reach into the pricing subgraph.
@@ -671,15 +675,21 @@ query BrandDetail($id: ID!) {
     accentColor heroImageUrl
     loyaltyPointsMultiplier numberOfProperties
     sustainabilityCommitment
-    featuredHotels(first: 12) {
+    # Page slices to 6 anyway — fetch exactly what we render so the
+    # federated complexity score stays under the guardrail.
+    featuredHotels(first: 6) {
       id name slug starRating
       location { address { city countryCode } }
       guestRating { overall count }
       media(first: 1, categories: [EXTERIOR]) {
-        edges { node { url altText } }
+        edges { node { url } }
       }
     }
   }
+  # Selected fields match HotelCard's rendering exactly; altText,
+  # hasSpa, hasPool, and the extra brand subtree are intentionally
+  # NOT requested (HotelCard reads them defensively but they're
+  # never displayed on the brand-detail surface).
   hotels(first: 60, filter: { brandIds: [$id] }) {
     totalCount
     edges {
@@ -688,9 +698,8 @@ query BrandDetail($id: ID!) {
         location { address { city countryCode } }
         guestRating { overall count }
         media(first: 1, categories: [EXTERIOR]) {
-          edges { node { url altText } }
+          edges { node { url } }
         }
-        hasSpa hasPool
       }
     }
   }

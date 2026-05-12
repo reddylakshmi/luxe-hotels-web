@@ -69,8 +69,21 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
   inline red text under the offending input and block submission;
   no redirect to an error page. Corp/Promo selection toggles an
   inline code input via the schema's `requiresCode` flag. Selected
-  rate + Use Points chips appear in the `/search` context line so
-  the guest sees their filter at a glance.
+  rate + Use Points chips appear in the `/search` context line, the
+  `/rates` "Select a Room and Rate" header, the `/book` summary
+  sidebar, and the `/confirmation` reference card — so the guest's
+  filter choice is visible end-to-end. Every hop preserves the
+  picker state in the URL (`specialRateCode`, `corporateCode`,
+  `usePoints`) including the booking page's *Edit Stay Details*
+  back-link.
+- **Uniform brand-page search.** `/brands/[id]` ships the same
+  full picker stack as the home page (Destination + Stay + Rooms /
+  Guests + Special Rate + Use Points). The brand page fetches the
+  `specialRates` catalogue in parallel with `BRAND_DETAIL_QUERY` and
+  seeds the SearchBar `defaults` from incoming search params, so a
+  brand-scoped search has the same controls + carry-over behaviour
+  as the home flow. Submit forwards `brandId` so `/search` filters
+  to the selected brand.
 - **Marriott-style rate tabs on `/hotels/[id]/rates`.** Two-tab
   WAI-ARIA tablist (Standard Rates / Deals & Packages) with
   per-tab badges, hash-synced deep-links (`/rates#deals` jumps

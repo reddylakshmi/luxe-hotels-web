@@ -214,19 +214,28 @@ it's a separate query string but the router plans it alongside.
 
 ## `SPECIAL_RATES_QUERY`
 
-**Pages:** `/` and `/search` (header) — populates the **Special
-Rate** dropdown next to the Rooms & Guests picker.
+**Pages:** `/`, `/search` (header), `/brands/[id]`, `/hotels/[id]/rates`,
+`/hotels/[id]/book`, and `/hotels/[id]/book/confirmation` — populates the
+**Special Rate** dropdown on every page that owns a picker, and resolves
+the human label for the booking-sidebar and confirmation chips.
 
 **Functionality:** returns the small catalogue (5 entries today)
 that drives the dropdown UI. Each row carries:
   • `code` — the matching `RatePlanType` enum member
     (e.g. `AAA_CAA`, `SENIOR`, `CORPORATE`) the web threads into
     the `/search` URL when the guest submits.
-  • `label` — display text shown in the dropdown.
+  • `label` — display text shown in the dropdown and, downstream,
+    in the chip next to "Select a Room and Rate", in the booking
+    summary sidebar, and on the confirmation reference card.
   • `description` — one-line copy under the highlighted option.
   • `requiresCode` — true only for `CORPORATE`. The web flips
     a free-text input on/off based on this flag rather than
     hardcoding the conditional in the bundle.
+
+The picker state (`specialRateCode`, `corporateCode`, `usePoints`) is
+threaded through every hop of the booking funnel via URL params so the
+back-link from `/book` to `/rates` preserves the guest's filter and the
+confirmation page can resolve the same label.
 
 **Subgraphs touched:** `pricing`.
 
@@ -717,7 +726,12 @@ filtered to that brand. The dedicated `featuredHotels` field gives a
 curated subset, while the `hotels(filter:{ brandIds:[$id] })` returns
 everything for the country grouping.
 
-**Subgraphs touched:** `property`.
+The brand page also runs [`SPECIAL_RATES_QUERY`](#special_rates_query)
+in parallel with this query — the rendered `<SearchBar variant="full">`
+needs the same picker catalogue as the home page so the brand-scoped
+search is uniform with `/`.
+
+**Subgraphs touched:** `property` (`pricing` for the parallel special-rates fetch).
 
 ```graphql
 query BrandDetail($id: ID!) {

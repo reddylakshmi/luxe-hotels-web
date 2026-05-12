@@ -7,6 +7,7 @@ import type { HotelCard } from "@/types/graphql";
 import type { GuestState } from "@/lib/guests";
 import type { StayWindow } from "@/lib/stay";
 import { stayLink } from "@/lib/stayLink";
+import { truncateExcerpt } from "@/lib/truncate";
 
 export function HotelListItem({
                                 hotel,
@@ -86,6 +87,15 @@ export function HotelListItem({
                   </span>
                     )}
                   </div>
+                  {/* Editorial excerpt — clamped to ~160 chars so the
+                      row stays single-screen regardless of seed
+                      verbosity. Falls through gracefully when the
+                      query didn't fetch the description. */}
+                  {hotel.description?.text && (
+                    <p className="text-sm text-ink/70 leading-relaxed mb-4">
+                      {truncateExcerpt(hotel.description.text)}
+                    </p>
+                  )}
                   {badges.length > 0 && (
                           <ul className="flex flex-wrap gap-1.5 mb-4">
                             {badges.map((b) => (
@@ -117,9 +127,17 @@ export function HotelListItem({
                             <div className="text-sm text-ink/60">Rates available on inquiry.</div>
                     )}
                   </div>
-                  <Link href={reservationLink} className="btn-primary text-xs px-5 py-2.5 whitespace-nowrap">
-                    View rates
-                  </Link>
+                  <div className="flex items-center gap-3 whitespace-nowrap">
+                    <Link
+                      href={detailLink}
+                      className="text-xs text-goldDeep underline hover:no-underline"
+                    >
+                      View details
+                    </Link>
+                    <Link href={reservationLink} className="btn-primary text-xs px-5 py-2.5">
+                      View rates
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

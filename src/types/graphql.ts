@@ -58,6 +58,9 @@ export type HotelCard = {
   location: { address: Address };
   guestRating?: GuestRating | null;
   media: { edges: MediaEdge[] };
+  /** Localized prose excerpt; present on SEARCH_HOTELS_QUERY rows
+   *  for the description blurb under the hotel name. */
+  description?: { text?: string | null } | null;
   hasSpa?: boolean;
   hasPool?: boolean;
   hasGolf?: boolean;

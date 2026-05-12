@@ -97,6 +97,15 @@ export const SEARCH_HOTELS_QUERY = /* GraphQL */ `
           brand { tier }
           location { address { city countryCode } }
           guestRating { overall count }
+          # Editorial excerpt under the hotel name on search results
+          # would go here as: description { text(locale: "en") }
+          # but the property subgraph's resolver currently throws a
+          # Locale-coercion ClassCastException (Locale scalar arrives
+          # as java.util.Locale, the localizedText resolver expects
+          # String). Separate backend fix; once resolved, uncomment
+          # the line below and HotelListItem picks up the excerpt
+          # via its existing render branch.
+          # description { text(locale: "en") }
           media(first: 1, categories: [EXTERIOR]) {
             edges { node { url } }
           }

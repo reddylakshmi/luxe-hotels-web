@@ -37,6 +37,14 @@ export type SearchInput = {
   minNightlyRate?: number;
   maxNightlyRate?: number;
   sortBy?: SortKey;
+  // ── Special-rate selection from the home-page picker ──
+  /** RatePlanType code (e.g. AAA_CAA, SENIOR, CORPORATE). Defaults to
+   *  BEST_AVAILABLE which is the "Lowest Regular Rate" option. */
+  specialRateCode?: string;
+  /** Free-text code captured when the guest chose Corp/Promo. */
+  corporateCode?: string;
+  /** True when the guest selected "Use Points / Awards". */
+  usePoints?: boolean;
 };
 
 /** UI-facing keys that map 1:1 onto the GraphQL HotelSortField enum. */
@@ -92,6 +100,9 @@ export function withDefaults(input: SearchInput): ResolvedSearch {
     minNightlyRate: input.minNightlyRate,
     maxNightlyRate: input.maxNightlyRate,
     sortBy: input.sortBy,
+    specialRateCode: input.specialRateCode,
+    corporateCode: input.corporateCode,
+    usePoints: input.usePoints,
   };
 }
 
@@ -143,6 +154,9 @@ export function fromSearchParams(p: Record<string, string | string[] | undefined
     minNightlyRate: parseFloatOpt(pick("minNightlyRate")),
     maxNightlyRate: parseFloatOpt(pick("maxNightlyRate")),
     sortBy: parseSortKey(pick("sortBy")),
+    specialRateCode: pick("specialRateCode"),
+    corporateCode: pick("corporateCode"),
+    usePoints: parseBoolOpt(pick("usePoints")),
   };
 }
 

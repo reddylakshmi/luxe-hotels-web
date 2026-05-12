@@ -2,8 +2,8 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
-import { SEARCH_HOTELS_QUERY } from "@/lib/queries";
-import type { Brand, Connection, HotelCard as HotelCardType, HotelFacets } from "@/types/graphql";
+import { SEARCH_HOTELS_QUERY, SPECIAL_RATES_QUERY } from "@/lib/queries";
+import type { Brand, Connection, HotelCard as HotelCardType, HotelFacets, SpecialRate } from "@/types/graphql";
 import { fromSearchParams, withDefaults } from "@/lib/search";
 import { fmtDate } from "@/lib/stay";
 import { SearchBar } from "@/components/SearchBar";
@@ -49,19 +49,30 @@ export default async function SearchPage({
 
   let data: Resp | null = null;
   let error: string | null = null;
+  let specialRates: SpecialRate[] = [];
   try {
-    data = await gqlFetch<Resp>(SEARCH_HOTELS_QUERY, {
-      filter,
-      first: RESULTS_PER_PAGE,
-      checkIn: input.checkIn,
-      checkOut: input.checkOut,
-      adults: input.adults,
-      children: input.children,
-      sortBy: input.sortBy ?? null,
-    });
+    const [search, rates] = await Promise.all([
+      gqlFetch<Resp>(SEARCH_HOTELS_QUERY, {
+        filter,
+        first: RESULTS_PER_PAGE,
+        checkIn: input.checkIn,
+        checkOut: input.checkOut,
+        adults: input.adults,
+        children: input.children,
+        sortBy: input.sortBy ?? null,
+      }),
+      gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY).catch(() => ({
+        specialRates: [] as SpecialRate[],
+      })),
+    ]);
+    data = search;
+    specialRates = rates.specialRates;
   } catch (e) {
     error = (e as Error).message;
   }
+  const selectedSpecialRate = specialRates.find(
+    (r) => r.code === input.specialRateCode,
+  );
 
   const hotels = data?.hotels.edges.map((e) => e.node) ?? [];
   const totalCount = data?.hotels.totalCount ?? 0;
@@ -81,6 +92,7 @@ export default async function SearchPage({
                         theme="ink"
                         variant="full"
                         brandId={input.brandId || undefined}
+                        specialRates={specialRates}
                         defaults={{
                           destination: input.destination,
                           checkIn: input.checkIn,
@@ -90,6 +102,9 @@ export default async function SearchPage({
                           adults: input.adults,
                           children: input.children,
                           childAges: input.childAges,
+                          specialRateCode: input.specialRateCode,
+                          corporateCode: input.corporateCode,
+                          usePoints: input.usePoints,
                         }}
                 />
                 <div className="mt-4 text-sm text-cream/70 flex flex-wrap gap-x-2 gap-y-1">
@@ -117,6 +132,28 @@ export default async function SearchPage({
                               Brand-scoped
                             </Link>
                           </>
+                  )}
+                  {/* Special-rate selection chip — surfaces what the
+                      home-page picker chose so the user sees their
+                      filter at a glance. Only renders for non-default
+                      rates so "Lowest Regular Rate" doesn't clutter
+                      the line. */}
+                  {selectedSpecialRate && selectedSpecialRate.code !== "BEST_AVAILABLE" && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="text-gold/90">
+                        {selectedSpecialRate.label}
+                        {input.corporateCode && selectedSpecialRate.code === "CORPORATE" && (
+                          <> ({input.corporateCode})</>
+                        )}
+                      </span>
+                    </>
+                  )}
+                  {input.usePoints && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="text-gold/90">Using points</span>
+                    </>
                   )}
                 </div>
               </div>

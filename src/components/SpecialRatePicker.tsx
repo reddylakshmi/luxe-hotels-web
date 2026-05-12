@@ -6,12 +6,18 @@
 // stay one schema-level source of truth instead of being duplicated
 // across the bundle.
 //
-// When the guest picks the Corp/Promo entry, an inline code input
-// appears. Use Points lives outside this picker (a sibling checkbox)
-// because it's not mutually exclusive with the rate filter — a
-// guest can both apply a corporate rate AND elect to redeem points.
+// The dropdown panel is rendered through React Portal at
+// document.body so it floats above everything else and can never
+// be clipped by an ancestor's `overflow-hidden` or a sibling
+// section. (The hero on `/` uses overflow-hidden to clip its
+// background image — without the portal, a dropdown opened near
+// the bottom of the hero gets cut in half by the Featured Hotels
+// section below.) Position is computed from the trigger button's
+// bounding rect so the dropdown follows the trigger on resize +
+// scroll while open.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type SpecialRate = {
   code: string;
@@ -38,13 +44,56 @@ export function SpecialRatePicker({
   theme?: "cream" | "ink";
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLUListElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  // Close on outside click + Escape.
+  // Defer portal mount until client hydration to avoid SSR mismatch.
+  useEffect(() => setMounted(true), []);
+
+  // Recompute panel position from the trigger's bounding rect each
+  // time we open + on scroll/resize while open. createPortal alone
+  // doesn't position the panel — we have to drive that ourselves.
+  const recalc = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const r = trigger.getBoundingClientRect();
+    setCoords({
+      top: r.bottom + window.scrollY + 8,
+      left: r.left + window.scrollX,
+      width: r.width,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    recalc();
+  }, [open, recalc]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onScrollResize() {
+      recalc();
+    }
+    window.addEventListener("scroll", onScrollResize, true);
+    window.addEventListener("resize", onScrollResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollResize, true);
+      window.removeEventListener("resize", onScrollResize);
+    };
+  }, [open, recalc]);
+
+  // Outside-click + Escape dismissal.
   useEffect(() => {
     if (!open) return;
     function onDocDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (
+        triggerRef.current?.contains(t) ||
+        panelRef.current?.contains(t)
+      ) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -62,11 +111,12 @@ export function SpecialRatePicker({
   const labelClr = theme === "ink" ? "text-cream/70" : "text-ink/60";
 
   return (
-    <div ref={ref} className={`relative px-5 py-3 ${fieldBg}`}>
+    <div className={`relative px-5 py-3 ${fieldBg}`}>
       <div className={`text-[10px] uppercase tracking-[0.2em] ${labelClr} mb-1`}>
         Special Rate
       </div>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
@@ -77,7 +127,8 @@ export function SpecialRatePicker({
         <span aria-hidden className="text-ink/40 text-xs">▾</span>
       </button>
 
-      {/* When the selected rate requires a code, show the inline input. */}
+      {/* Corp/Promo code input — visible only when the selected
+          rate flags requiresCode=true. */}
       {selected?.requiresCode && (
         <input
           type="text"
@@ -89,11 +140,21 @@ export function SpecialRatePicker({
         />
       )}
 
-      {open && (
+      {/* Render the dropdown panel through a portal so an ancestor's
+          overflow-hidden / stacking context can never clip it. */}
+      {mounted && open && coords && createPortal(
         <ul
+          ref={panelRef}
           role="listbox"
           aria-label="Special rate"
-          className="absolute z-30 top-full left-0 right-0 mt-2 bg-cream border border-ink/15 shadow-xl text-ink max-h-80 overflow-auto"
+          style={{
+            position: "absolute",
+            top: coords.top,
+            left: coords.left,
+            width: coords.width,
+            zIndex: 60,
+          }}
+          className="bg-cream border border-ink/15 shadow-xl text-ink max-h-96 overflow-auto"
         >
           {options.map((opt) => {
             const isSelected = opt.code === value;
@@ -118,13 +179,12 @@ export function SpecialRatePicker({
               </li>
             );
           })}
-        </ul>
+        </ul>,
+        document.body,
       )}
 
-      {/* Hidden inputs so the picker round-trips via form-data when the
-          parent submits as a multipart form. Today's SearchBar uses
-          router.push so these aren't strictly needed, but keeping
-          them keeps the picker drop-in for any other form. */}
+      {/* Hidden inputs so the picker round-trips via form-data when
+          a parent component reads FormData on submit. */}
       <input type="hidden" name="specialRateCode" value={value} />
       {selected?.requiresCode && (
         <input type="hidden" name="corporateCode" value={corporateCode} />

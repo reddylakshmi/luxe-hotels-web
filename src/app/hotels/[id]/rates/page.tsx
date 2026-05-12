@@ -2,8 +2,8 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
-import { RATES_QUERY } from "@/lib/queries";
-import type { HotelRates } from "@/types/graphql";
+import { RATES_QUERY, SPECIAL_RATES_QUERY } from "@/lib/queries";
+import type { HotelRates, SpecialRate } from "@/types/graphql";
 import { resolveStay, fmtDate } from "@/lib/stay";
 import { fromSearchParams as guestsFrom } from "@/lib/guests";
 import { picker } from "@/lib/searchParams";
@@ -31,27 +31,42 @@ export default async function RatesPage({
     nights: pick("nights"),
   });
   const guests = guestsFrom(searchParams);
-  const usePoints = pick("usePoints") === "1";
+  // The home-page picker now writes usePoints=true; accept either
+  // form so legacy "1" links still work.
+  const usePoints = pick("usePoints") === "1" || pick("usePoints") === "true";
   const showTaxes = pick("showTaxes") === "1";
   const currency = pick("currency") || "USD";
   // Set when the user arrives from a "Check rates" button on the hotel
   // detail page — the matching room card opens and scrolls into view.
   const focusRoomId = pick("roomId");
+  const specialRateCode = pick("specialRateCode");
+  const corporateCode = pick("corporateCode");
 
   let data: Resp | null = null;
   let error: string | null = null;
+  let specialRates: SpecialRate[] = [];
   try {
-    data = await gqlFetch<Resp>(RATES_QUERY, {
-      id: params.id,
-      checkIn: stay.checkIn,
-      checkOut: stay.checkOut,
-      adults: guests.adults,
-      children: guests.children,
-      currency,
-    });
+    const [hotelData, ratesData] = await Promise.all([
+      gqlFetch<Resp>(RATES_QUERY, {
+        id: params.id,
+        checkIn: stay.checkIn,
+        checkOut: stay.checkOut,
+        adults: guests.adults,
+        children: guests.children,
+        currency,
+      }),
+      gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY).catch(() => ({
+        specialRates: [] as SpecialRate[],
+      })),
+    ]);
+    data = hotelData;
+    specialRates = ratesData.specialRates;
   } catch (e) {
     error = (e as Error).message;
   }
+  const selectedSpecialRate = specialRateCode
+    ? specialRates.find((r) => r.code === specialRateCode)
+    : undefined;
 
   if (!data?.hotel || error) {
     return (
@@ -119,6 +134,28 @@ export default async function RatesPage({
               {guests.children > 0 && `, ${guests.children} child${guests.children === 1 ? "" : "ren"}`}
               {guests.rooms > 1 && `, ${guests.rooms} rooms`}
             </p>
+            {/* Surface the home-page picker selections so the user
+                sees their special-rate filter + Use Points choice
+                carried through. Without these, the picker context
+                was a black box from /rates onwards. */}
+            {(selectedSpecialRate || usePoints) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                {selectedSpecialRate &&
+                  selectedSpecialRate.code !== "BEST_AVAILABLE" && (
+                  <span className="bg-goldDeep/10 text-goldDeep border border-goldDeep/30 px-2 py-1 uppercase tracking-[0.15em]">
+                    {selectedSpecialRate.label}
+                    {corporateCode && selectedSpecialRate.code === "CORPORATE" && (
+                      <> · {corporateCode}</>
+                    )}
+                  </span>
+                )}
+                {usePoints && (
+                  <span className="bg-goldDeep/10 text-goldDeep border border-goldDeep/30 px-2 py-1 uppercase tracking-[0.15em]">
+                    Using points
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <RatesSettingsBar
             hotelId={params.id}

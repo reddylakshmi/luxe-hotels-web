@@ -112,11 +112,18 @@ describe("incRooms / decRooms", () => {
     expect(MIN_ROOMS).toBe(1);
   });
 
-  it("incRooms enforces ≥1 adult per room when bumping past existing adults", () => {
+  it("incRooms does NOT auto-bump adults — picker is capacity, not enforcement", () => {
+    // Reported as a UX bug: a guest who chose 1 adult and then
+    // bumped rooms to 2 saw the adult count silently jump to 2.
+    // The "≥1 adult per room" floor is now a submit-side concern
+    // (when the booking actually needs that guarantee), not a
+    // picker-side auto-correction. Lets the guest book 2 rooms
+    // with 1 adult — common when paying for an adjoining room
+    // while staying in one, or pre-booking for a group leader.
     let s: GuestState = { rooms: 1, adults: 1, children: 0, childAges: [] };
     s = incRooms(s);
     expect(s.rooms).toBe(2);
-    expect(s.adults).toBe(2); // bumped from 1 to satisfy 1/room floor
+    expect(s.adults).toBe(1);
   });
 
   it("incRooms keeps existing adults when already above the floor", () => {

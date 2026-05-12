@@ -66,11 +66,14 @@ export function totalCapacity(state: GuestState): number {
 export function incRooms(state: GuestState): GuestState {
   if (state.rooms >= MAX_ROOMS) return state;
   const nextRooms = state.rooms + 1;
-  // Adding a room raises the adult floor (1/room). Bump only if we'd otherwise
-  // violate the floor — leave existing adult counts above the floor alone.
-  const cap = nextRooms * MAX_GUESTS_PER_ROOM - state.children;
-  const adults = Math.min(Math.max(state.adults, MIN_ADULTS_PER_ROOM * nextRooms), cap);
-  return { ...state, rooms: nextRooms, adults };
+  // Adding a room is a capacity decision — DON'T auto-bump adults.
+  // A guest legitimately booking 2 rooms with 1 adult (paying for
+  // an adjoining room while staying in one, pre-booking for a
+  // group leader, etc.) gets surprised when the adult count
+  // silently increments behind their back. The "≥1 adult per
+  // room" floor is enforced on submit-side validation when the
+  // booking actually needs it, not here in the picker.
+  return { ...state, rooms: nextRooms };
 }
 
 export function decRooms(state: GuestState): GuestState {

@@ -6,8 +6,11 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { formatPoints, pointsToCashUSD } from "@/lib/loyalty";
+import { gqlFetch } from "@/lib/graphql";
+import { SPECIAL_RATES_QUERY } from "@/lib/queries";
+import type { SpecialRate } from "@/types/graphql";
 
-export default function ConfirmationPage({
+export default async function ConfirmationPage({
   params,
   searchParams,
 }: {
@@ -23,6 +26,22 @@ export default function ConfirmationPage({
   const firstName = pick("firstName") ?? "";
   const ratePlanCode = pick("ratePlanCode") ?? "";
   const pointsRedeemed = Number(pick("points") ?? "0") || 0;
+  const specialRateCode = pick("specialRateCode");
+  const corporateCode = pick("corporateCode");
+  const usePoints = pick("usePoints") === "1" || pick("usePoints") === "true";
+
+  // Resolve the human label for the special-rate chip, mirroring the
+  // /search, /rates, and /book sidebars. Empty catalogue is fine —
+  // chip falls back to the raw code so the guest still sees something.
+  let specialRateLabel: string | undefined;
+  if (specialRateCode && specialRateCode !== "BEST_AVAILABLE") {
+    try {
+      const data = await gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY);
+      specialRateLabel = data.specialRates.find((r) => r.code === specialRateCode)?.label;
+    } catch {
+      specialRateLabel = undefined;
+    }
+  }
 
   return (
     <>
@@ -47,6 +66,23 @@ export default function ConfirmationPage({
           <p className="font-mono text-2xl tracking-wider">{ref}</p>
           {ratePlanCode && (
             <p className="text-xs text-ink/55 mt-2">Rate plan · {ratePlanCode}</p>
+          )}
+          {(specialRateLabel || usePoints) && (
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {specialRateLabel && (
+                <span className="text-[10px] uppercase tracking-[0.18em] bg-goldDeep/10 text-goldDeep border border-goldDeep/30 px-2 py-1">
+                  {specialRateLabel}
+                  {corporateCode && specialRateCode === "CORPORATE" && (
+                    <> · {corporateCode}</>
+                  )}
+                </span>
+              )}
+              {usePoints && (
+                <span className="text-[10px] uppercase tracking-[0.18em] bg-goldDeep/10 text-goldDeep border border-goldDeep/30 px-2 py-1">
+                  Using points
+                </span>
+              )}
+            </div>
           )}
           {pointsRedeemed > 0 && (
             <div className="mt-6 pt-5 border-t border-ink/10">

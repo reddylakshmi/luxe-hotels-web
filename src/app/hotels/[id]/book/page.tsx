@@ -14,12 +14,13 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
 import { gqlFetchAuthed } from "@/lib/graphqlAuthed";
-import { ME_PROFILE_QUERY, MY_LOYALTY_BALANCE_QUERY, RATES_QUERY } from "@/lib/queries";
+import { ME_PROFILE_QUERY, MY_LOYALTY_BALANCE_QUERY, RATES_QUERY, SPECIAL_RATES_QUERY } from "@/lib/queries";
 import type {
   GuestProfile,
   HotelRates,
   Rate,
   RoomAvailability,
+  SpecialRate,
 } from "@/types/graphql";
 import { resolveStay, fmtDate } from "@/lib/stay";
 import { fromSearchParams as guestsFrom } from "@/lib/guests";
@@ -68,12 +69,17 @@ export default async function BookPage({
   const ratePlanCode = pick("ratePlanCode") ?? "";
   const rateToken = pick("rateToken") ?? "";
   const roomId = pick("roomId") ?? "";
+  // Home / rates picker carry-through. Accept both forms so legacy
+  // "1" links keep working alongside the new "true" contract.
+  const specialRateCode = pick("specialRateCode");
+  const corporateCode = pick("corporateCode");
+  const usePoints = pick("usePoints") === "1" || pick("usePoints") === "true";
 
   // Fetch the rate-list and (when signed in) the guest's full profile in
   // parallel — covers name, email, phone, member#, addresses, and payment
   // methods so the booking form lands fully pre-filled.
   const session = getSession();
-  const [data, profileData, loyaltyData] = await Promise.all([
+  const [data, profileData, loyaltyData, specialRatesData] = await Promise.all([
     gqlFetch<Resp>(RATES_QUERY, {
       id: params.id,
       checkIn: stay.checkIn,
@@ -105,6 +111,15 @@ export default async function BookPage({
           return null;
         })
       : Promise.resolve(null),
+    // Look up the picker label so the sidebar chip can show the same
+    // human text the guest saw on /search and /rates. Fall through to an
+    // empty catalogue if the pricing subgraph is down so the booking
+    // page still renders.
+    specialRateCode
+      ? gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY).catch(() => ({
+          specialRates: [] as SpecialRate[],
+        }))
+      : Promise.resolve({ specialRates: [] as SpecialRate[] }),
   ]);
   const profile = profileData?.me ?? null;
   const loyalty = loyaltyData?.myLoyaltyAccount
@@ -140,16 +155,29 @@ export default async function BookPage({
     rooms: guests.rooms,
   });
 
-  const editStayHref =
-    `/hotels/${params.id}/rates?` +
-    new URLSearchParams({
-      checkIn: stay.checkIn,
-      checkOut: stay.checkOut,
-      adults: String(guests.adults),
-      children: String(guests.children),
-      rooms: String(guests.rooms),
-      currency,
-    }).toString();
+  const editStayParams = new URLSearchParams({
+    checkIn: stay.checkIn,
+    checkOut: stay.checkOut,
+    adults: String(guests.adults),
+    children: String(guests.children),
+    rooms: String(guests.rooms),
+    currency,
+  });
+  // Preserve the home-page picker context on the back-link so the
+  // /rates page can re-render the same chips + picker state.
+  if (specialRateCode && specialRateCode !== "BEST_AVAILABLE") {
+    editStayParams.set("specialRateCode", specialRateCode);
+    if (corporateCode && specialRateCode === "CORPORATE") {
+      editStayParams.set("corporateCode", corporateCode);
+    }
+  }
+  if (usePoints) editStayParams.set("usePoints", "true");
+  const editStayHref = `/hotels/${params.id}/rates?${editStayParams.toString()}`;
+
+  const selectedSpecialRate =
+    specialRateCode && specialRateCode !== "BEST_AVAILABLE"
+      ? specialRatesData.specialRates.find((r) => r.code === specialRateCode)
+      : undefined;
 
   const isMemberRate = selectedRate.ratePlan.type === "MEMBER_RATE";
   const addressBits = [
@@ -221,6 +249,13 @@ export default async function BookPage({
           adults={guests.adults}
           children={guests.children}
           editStayHref={editStayHref}
+          specialRateLabel={selectedSpecialRate?.label}
+          corporateCode={
+            corporateCode && selectedSpecialRate?.code === "CORPORATE"
+              ? corporateCode
+              : undefined
+          }
+          usePoints={usePoints}
         />
       </section>
     </>

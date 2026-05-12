@@ -60,6 +60,9 @@ export function BookingExperience({
   adults,
   children,
   editStayHref,
+  specialRateLabel,
+  corporateCode,
+  usePoints,
 }: {
   bookingHref: string;
   hotelId: string;
@@ -83,6 +86,9 @@ export function BookingExperience({
   adults: number;
   children: number;
   editStayHref: string;
+  specialRateLabel?: string;
+  corporateCode?: string;
+  usePoints?: boolean;
 }) {
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   // Demo simplification — the loyalty subgraph's pointsValuation query
@@ -130,6 +136,9 @@ export function BookingExperience({
         editStayHref={editStayHref}
         pointsRedeemed={pointsToRedeem}
         loyaltyDiscount={loyaltyDiscount}
+        specialRateLabel={specialRateLabel}
+        corporateCode={corporateCode}
+        usePoints={usePoints}
       />
     </div>
   );

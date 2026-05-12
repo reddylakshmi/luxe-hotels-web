@@ -300,6 +300,14 @@ export function BookingForm({
     if (result.pointsRedeemed > 0) {
       params.set("points", String(result.pointsRedeemed));
     }
+    // Carry the picker context forward so the confirmation page can
+    // show matching chips — the booking URL already has them in the
+    // current searchParams, so just copy through.
+    const carry = ["specialRateCode", "corporateCode", "usePoints"];
+    for (const k of carry) {
+      const v = searchParams?.get(k);
+      if (v) params.set(k, v);
+    }
     router.push(`/hotels/${hotelId}/book/confirmation?${params.toString()}`);
   }
 

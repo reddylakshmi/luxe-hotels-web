@@ -30,6 +30,9 @@ export function BookingSummarySidebar({
   editStayHref,
   pointsRedeemed = 0,
   loyaltyDiscount = 0,
+  specialRateLabel,
+  corporateCode,
+  usePoints = false,
 }: {
   hotelName: string;
   rateRoom: RoomAvailability["roomType"];
@@ -47,6 +50,14 @@ export function BookingSummarySidebar({
   pointsRedeemed?: number;
   /** Cash impact of the redemption in the booking's currency. */
   loyaltyDiscount?: number;
+  /** Human label for the special-rate selection (e.g. "AAA/CAA Discount").
+   *  Resolved by the page from the federated specialRates catalogue. */
+  specialRateLabel?: string;
+  /** Corp/Promo code paired with a CORPORATE special-rate. */
+  corporateCode?: string;
+  /** When true, surfaces a "Using points" chip so the guest sees the
+   *  same selection they made on the home / rates picker. */
+  usePoints?: boolean;
 }) {
   const [showDetails, setShowDetails] = useState(false);
   const isMember = selectedRate?.ratePlan.type === "MEMBER_RATE";
@@ -92,6 +103,25 @@ export function BookingSummarySidebar({
             }`}
           />
         </dl>
+
+        {/* Special-rate + Use Points chips — surfaces the home / rates
+            picker selections so the guest sees their choices carried
+            all the way to checkout. */}
+        {(specialRateLabel || usePoints) && (
+          <div className="flex flex-wrap gap-2">
+            {specialRateLabel && (
+              <span className="text-[10px] uppercase tracking-[0.18em] bg-goldDeep/10 text-goldDeep border border-goldDeep/30 px-2 py-1">
+                {specialRateLabel}
+                {corporateCode && <> · {corporateCode}</>}
+              </span>
+            )}
+            {usePoints && (
+              <span className="text-[10px] uppercase tracking-[0.18em] bg-goldDeep/10 text-goldDeep border border-goldDeep/30 px-2 py-1">
+                Using points
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Member exclusive label */}
         {isMember && (

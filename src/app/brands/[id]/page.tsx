@@ -3,11 +3,17 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { gqlFetch } from "@/lib/graphql";
-import { BRAND_DETAIL_QUERY } from "@/lib/queries";
-import type { BrandDetail, Connection, HotelCard as HotelCardType } from "@/types/graphql";
+import { BRAND_DETAIL_QUERY, SPECIAL_RATES_QUERY } from "@/lib/queries";
+import type {
+  BrandDetail,
+  Connection,
+  HotelCard as HotelCardType,
+  SpecialRate,
+} from "@/types/graphql";
 import { BrandLogo } from "@/components/BrandLogo";
 import { HotelCard } from "@/components/HotelCard";
 import { SearchBar } from "@/components/SearchBar";
+import { fromSearchParams, withDefaults } from "@/lib/search";
 import { imageUrl } from "@/lib/image";
 
 type Resp = {
@@ -15,10 +21,31 @@ type Resp = {
   hotels: Connection<HotelCardType>;
 };
 
-export default async function BrandDetailPage({ params }: { params: { id: string } }) {
-  const data = await gqlFetch<Resp>(BRAND_DETAIL_QUERY, { id: params.id });
+export default async function BrandDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  // Run the brand fetch + the special-rates catalogue in parallel so
+  // the search bar can render with the same picker shape as home /
+  // /search. The catalogue degrades gracefully on failure — the
+  // SearchBar omits the picker row if the prop is empty.
+  const [data, ratesData] = await Promise.all([
+    gqlFetch<Resp>(BRAND_DETAIL_QUERY, { id: params.id }),
+    gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY).catch(() => ({
+      specialRates: [] as SpecialRate[],
+    })),
+  ]);
   const brand = data.brand;
   if (!brand) notFound();
+  const specialRates = ratesData.specialRates;
+
+  // Preserve the home / /search picker context if the guest arrived
+  // here via a brand-scoped link. Falls through to sensible defaults
+  // when the URL has nothing — SearchBar then renders fresh.
+  const carryover = withDefaults(fromSearchParams(searchParams));
 
   const hotels = data.hotels.edges.map((e) => e.node);
 
@@ -77,9 +104,31 @@ export default async function BrandDetailPage({ params }: { params: { id: string
               </div>
             </section>
 
-            {/* Per-brand search bar */}
+            {/* Per-brand search bar — uniform "full" variant so the
+                guest sees Destination + Stay + Rooms/Guests + Special
+                Rate + Use Points, exactly like the home page. The
+                brandId is sent along on submit so the /search results
+                page filters to this brand. */}
             <section className="container-x py-12">
-              <SearchBar brandId={brand.id} brandName={brand.name} variant="compact" />
+              <SearchBar
+                brandId={brand.id}
+                brandName={brand.name}
+                variant="full"
+                specialRates={specialRates}
+                defaults={{
+                  destination: carryover.destination,
+                  checkIn: carryover.checkIn,
+                  checkOut: carryover.checkOut,
+                  nights: carryover.nights,
+                  rooms: carryover.rooms,
+                  adults: carryover.adults,
+                  children: carryover.children,
+                  childAges: carryover.childAges,
+                  specialRateCode: carryover.specialRateCode,
+                  corporateCode: carryover.corporateCode,
+                  usePoints: carryover.usePoints,
+                }}
+              />
             </section>
 
             {/* About */}

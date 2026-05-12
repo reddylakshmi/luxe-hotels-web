@@ -103,7 +103,8 @@ That means queries like `featuredHotels(first: 9) { brand { tier } roomTypes { i
 
 | Functionality | Page | Query | Subgraphs touched |
 |---|---|---|---|
-| Home — landing carousel + brand story | `/` | [`HOME_QUERY`](#home_query) | property · content |
+| Home — landing carousel + brand story | `/` | [`HOME_QUERY`](#home_query) | property · content · pricing |
+| Special-rate dropdown catalogue | `/`, `/search` | [`SPECIAL_RATES_QUERY`](#special_rates_query) | pricing |
 | Find a hotel — results + filters + sort | `/search` | [`SEARCH_HOTELS_QUERY`](#search_hotels_query) | property · pricing |
 | Hotels list + city/country filter | `/hotels` | [`HOTELS_LIST_QUERY`](#hotels_list_query) | property |
 | Destination autocomplete (typeahead) | search bar (any page) | [`DESTINATION_SUGGESTIONS_QUERY`](#destination_suggestions_query) | property |
@@ -201,6 +202,57 @@ query Home {
   brandStory(locale: "en") {
     title { text } tagline { text }
     pillars { code title { text } description { text } icon }
+  }
+}
+```
+
+The home page also fetches `SPECIAL_RATES_QUERY` (below) as part
+of the same round-trip when fetching against the federated router —
+it's a separate query string but the router plans it alongside.
+
+---
+
+## `SPECIAL_RATES_QUERY`
+
+**Pages:** `/` and `/search` (header) — populates the **Special
+Rate** dropdown next to the Rooms & Guests picker.
+
+**Functionality:** returns the small catalogue (5 entries today)
+that drives the dropdown UI. Each row carries:
+  • `code` — the matching `RatePlanType` enum member
+    (e.g. `AAA_CAA`, `SENIOR`, `CORPORATE`) the web threads into
+    the `/search` URL when the guest submits.
+  • `label` — display text shown in the dropdown.
+  • `description` — one-line copy under the highlighted option.
+  • `requiresCode` — true only for `CORPORATE`. The web flips
+    a free-text input on/off based on this flag rather than
+    hardcoding the conditional in the bundle.
+
+**Subgraphs touched:** `pricing`.
+
+```graphql
+query SpecialRates {
+  specialRates {
+    code
+    label
+    description
+    requiresCode
+  }
+}
+```
+
+Sample response:
+
+```json
+{
+  "data": {
+    "specialRates": [
+      { "code": "BEST_AVAILABLE", "label": "Lowest Regular Rate", "description": "Best publicly-available rate, no membership required.", "requiresCode": false },
+      { "code": "AAA_CAA",        "label": "AAA/CAA Discount",     "description": "Member savings for AAA (US) and CAA (Canada) cardholders.", "requiresCode": false },
+      { "code": "SENIOR",         "label": "Senior Discount",       "description": "Reduced rate for guests aged 62 and over. Valid ID required at check-in.", "requiresCode": false },
+      { "code": "GOVERNMENT",     "label": "Government / Military", "description": "Per-diem-aligned rate for active government and military personnel.", "requiresCode": false },
+      { "code": "CORPORATE",      "label": "Corp / Promo Code",     "description": "Apply your employer's negotiated rate or a promotional code.", "requiresCode": true }
+    ]
   }
 }
 ```

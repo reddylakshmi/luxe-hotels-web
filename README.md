@@ -57,6 +57,31 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
   input. The `/search` filter mirrors the same matching domain on the
   server side, so submitting "France", "Telangana", or "FR" all surface
   the right hotels.
+- **Home-page picker with special-rate dropdown.** The SearchBar
+  on `/` ships the full picker stack — destination, stay dates,
+  rooms & guests, plus a **Special Rate** dropdown (Lowest Regular
+  Rate / AAA-CAA / Senior / Government / Corp-Promo) and a **Use
+  Points / Awards** checkbox. The dropdown is populated from the
+  federated `specialRates` query so labels live next to the
+  matching `RatePlanType` enum in the schema. Submit runs the pure
+  `validateSearchSubmit` helper — empty destination, missing or
+  calendar-invalid dates, or check-out ≤ check-in all surface
+  inline red text under the offending input and block submission;
+  no redirect to an error page. Corp/Promo selection toggles an
+  inline code input via the schema's `requiresCode` flag. Selected
+  rate + Use Points chips appear in the `/search` context line so
+  the guest sees their filter at a glance.
+- **Marriott-style rate tabs on `/hotels/[id]/rates`.** Two-tab
+  WAI-ARIA tablist (Standard Rates / Deals & Packages) with
+  per-tab badges, hash-synced deep-links (`/rates#deals` jumps
+  straight to the second tab + back-button restores the prior
+  tab), and pre-partitioned room lists per tab so only the active
+  tab's cards mount client-side. Rate plans are classified via
+  `lib/ratesTabs.ts` — BAR + ADVANCE_PURCHASE land in Standard;
+  MEMBER / AAA / SENIOR / GOVERNMENT / CORPORATE / PROMOTION /
+  PACKAGE / GROUP / REDEMPTION land in Deals; unknown codes fail
+  closed to Deals so a future enum member can't silently disappear
+  from the UI.
 - **End-to-end booking flow.** Search → rate-list → guest+payment form →
   `createReservation` → confirmation. Validation lives in
   `lib/bookingValidation.ts` (pure, 79 tests) so card number / zip /
@@ -207,7 +232,7 @@ every protected page ensures the round-trip is seamless.
 ## Testing
 
 ```bash
-npm test           # full vitest suite (510 tests, <1s)
+npm test           # full vitest suite (548 tests, <1s)
 npm run test:watch # watch mode
 ```
 
@@ -217,6 +242,9 @@ npm run test:watch # watch mode
 | `lib/accountNav.test.ts` | 7 | Sidebar href resolution (anchor → `/account#<id>` from subpages, explicit href passthrough) + active-state rules (subpage match only, never anchor items) |
 | `lib/trip.test.ts` | 15 | Stay-window formatter, cancellation-deadline parsing, mobile-check-in form validator (document type / number / ETA HH:MM) |
 | `lib/bookingValidation.test.ts` | 82 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math (incl. multi-room scaling — subtotal/taxes/fees multiply by `rooms` with default 1 and a defensive clamp at ≥ 1), hold-timer formatter, card-number formatter, typing simulations |
+| `lib/searchBarValidation.test.ts` | 13 | Home-page search submit: empty destination, missing/invalid dates (Feb 30, month 13, non-leap Feb 29, leap-year Feb 29), check-out ≤ check-in ordering, null/undefined coercion, cascade prevention (no double-error when a date is itself invalid) |
+| `lib/ratesTabs.test.ts` | 11 | Rate-plan classification (BAR + ADVANCE_PURCHASE → standard; MEMBER / AAA / SENIOR / PACKAGE / etc. → deals), case-insensitivity, null/unknown fail-closed to deals, per-room partitioning drops rooms with zero matching rates |
+| `lib/truncate.test.ts` | 7 | Excerpt clamping for HotelListItem — word-boundary cuts, hard cut for token-only input, trailing punctuation strip, null/undefined/empty defensiveness, 160-char default |
 | `lib/meetings.test.ts` | 43 | Setup labels, capacity-fit (snug-not-largest), search input validation + wire shape, match-score caps, RFP wizard step validators, draft-to-input transformer, status tone bucketing, cancel eligibility |
 | `lib/autocomplete.test.ts` | 17 | Group ordering (city → state → country → hotel), flatten, keyboard wraparound, hotel/city/state/country routing |
 | `lib/countries.test.ts` | ~20 | 53-country invariants, ISO codes, phone codes, zip-pattern correctness |

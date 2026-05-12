@@ -9,13 +9,34 @@ import { imageUrl } from "@/lib/image";
 import { RecentlyViewedTracker } from "@/components/RecentlyViewedTracker";
 import { HotelTabs } from "@/components/HotelTabs";
 import type { HotelTabId } from "@/lib/hotelTabs";
+import { resolveStay } from "@/lib/stay";
+import { fromSearchParams as guestsFrom } from "@/lib/guests";
+import { picker } from "@/lib/searchParams";
+import { serializeStayLink } from "@/lib/stayLink";
 
 type Resp = { hotel: HotelDetail | null };
 
-export default async function HotelDetailPage({ params }: { params: { id: string } }) {
+export default async function HotelDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const data = await gqlFetch<Resp>(HOTEL_DETAIL_QUERY, { id: params.id });
   const h = data.hotel;
   if (!h) notFound();
+
+  // Read the booking context that the search page / brand page / etc.
+  // forwarded in the URL. Without this, every "Check rates" link
+  // below dropped rooms/adults/children/dates and the rate page
+  // fell back to defaults — losing the user's selections three
+  // screens upstream.
+  const pick = picker(searchParams);
+  const stay = resolveStay({ checkIn: pick("checkIn"), checkOut: pick("checkOut") });
+  const guests = guestsFrom(searchParams);
+  const currency = pick("currency");
+  const stayQuery = serializeStayLink({ stay, guests, currency });
 
   const heroUrl = imageUrl(h.media?.edges?.[0]?.node?.url, { w: 1920, h: 1080 });
   const galleryUrls = h.media?.edges?.slice(1, 7).map((e) => imageUrl(e.node.url, { w: 600, h: 450 })) ?? [];
@@ -39,7 +60,7 @@ export default async function HotelDetailPage({ params }: { params: { id: string
               </div>
             </section>
 
-            <HotelTabs panels={buildHotelPanels(h, city, galleryUrls)} />
+            <HotelTabs panels={buildHotelPanels(h, city, galleryUrls, stayQuery)} />
           </>
   );
 }
@@ -54,7 +75,19 @@ function buildHotelPanels(
         h: HotelDetail,
         city: string,
         galleryUrls: string[],
+        /** URL-encoded stay context (checkIn/checkOut/rooms/adults/...) the
+         *  hotel-detail page received from the search/brand surface. Every
+         *  "Check rates" link below appends this so the rate page opens
+         *  with the same booking shape the user already picked. */
+        stayQuery: string,
 ): Record<HotelTabId, React.ReactNode> {
+  // Helper at panel scope so the deep-linker for each room card
+  // stays a one-liner.
+  const rateUrl = (roomId: string) => {
+    const params = new URLSearchParams(stayQuery);
+    params.set("roomId", roomId);
+    return `/hotels/${h.id}/rates?${params.toString()}`;
+  };
   return {
     overview: (
             <>
@@ -121,7 +154,7 @@ function buildHotelPanels(
                                 )}
                               </ul>
                               <Link
-                                      href={`/hotels/${h.id}/rates?roomId=${rt.id}`}
+                                      href={rateUrl(rt.id)}
                                       className="btn-ghost w-full text-xs"
                               >
                                 Check rates

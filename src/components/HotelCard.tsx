@@ -2,15 +2,30 @@ import Link from "next/link";
 import { imageUrl } from "@/lib/image";
 import type { HotelCard as HotelCardType } from "@/types/graphql";
 
-export function HotelCard({ hotel }: { hotel: HotelCardType }) {
+export function HotelCard({
+  hotel,
+  /** Optional URL-encoded stay context (checkIn/checkOut/rooms/...).
+   *  When the caller has the booking shape on hand (search page,
+   *  brand-detail page), pass it so this card's links forward it
+   *  to the hotel-detail surface. The home page leaves it undefined
+   *  — the hotel-detail page will then use its own defaults. */
+  stayQuery,
+}: {
+  hotel: HotelCardType;
+  stayQuery?: string;
+}) {
   const img = hotel.media?.edges?.[0]?.node?.url;
   const city = hotel.location?.address?.city ?? "";
   const country = hotel.location?.address?.countryCode ?? "";
+  const detailHref = stayQuery ? `/hotels/${hotel.id}?${stayQuery}` : `/hotels/${hotel.id}`;
+  const bookHref = stayQuery
+    ? `/hotels/${hotel.id}?${stayQuery}#rooms`
+    : `/hotels/${hotel.id}#rooms`;
   return (
     <article className="group bg-cream flex flex-col">
       {/* Image + meta both link to the hotel overview. The Book Now CTA
           below lives outside this Link so we don't nest <a> elements. */}
-      <Link href={`/hotels/${hotel.id}`} className="block">
+      <Link href={detailHref} className="block">
         <div className="relative aspect-[4/3] overflow-hidden">
           <img
             src={imageUrl(img, { w: 800, h: 600 })}
@@ -49,7 +64,7 @@ export function HotelCard({ hotel }: { hotel: HotelCardType }) {
           reads window.location.hash on mount, so the destination page
           opens with rooms already activated. */}
       <Link
-        href={`/hotels/${hotel.id}#rooms`}
+        href={bookHref}
         aria-label={`Book ${hotel.name} — view rooms and suites`}
         className="btn-primary block text-center text-[11px] uppercase tracking-[0.2em] py-3"
       >

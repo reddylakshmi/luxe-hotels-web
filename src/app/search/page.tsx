@@ -159,9 +159,17 @@ export default async function SearchPage({
                                           key={h.id}
                                           hotel={h}
                                           nights={input.nights}
-                                          checkIn={input.checkIn}
-                                          checkOut={input.checkOut}
-                                          adults={input.adults}
+                                          stay={{
+                                            checkIn: input.checkIn,
+                                            checkOut: input.checkOut,
+                                            nights: input.nights,
+                                          }}
+                                          guests={{
+                                            rooms: input.rooms,
+                                            adults: input.adults,
+                                            children: input.children,
+                                            childAges: input.childAges,
+                                          }}
                                   />
                           ))}
                         </div>

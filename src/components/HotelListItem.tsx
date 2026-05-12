@@ -4,19 +4,28 @@
 import Link from "next/link";
 import { imageUrl } from "@/lib/image";
 import type { HotelCard } from "@/types/graphql";
+import type { GuestState } from "@/lib/guests";
+import type { StayWindow } from "@/lib/stay";
+import { stayLink } from "@/lib/stayLink";
 
 export function HotelListItem({
                                 hotel,
                                 nights,
-                                checkIn,
-                                checkOut,
-                                adults,
+                                stay,
+                                guests,
+                                currency,
                               }: {
   hotel: HotelCard;
   nights: number;
-  checkIn: string;
-  checkOut: string;
-  adults: number;
+  /** Full stay window from the search page — drives both the
+   *  detail-page link and the rate-page deep-link so the user
+   *  doesn't lose dates/rooms/children/currency moving between
+   *  surfaces. The old prop shape (just checkIn/checkOut/adults)
+   *  dropped rooms + children + currency, which is exactly the
+   *  bug the user reported. */
+  stay: StayWindow;
+  guests: GuestState;
+  currency?: string;
 }) {
   const img = hotel.media?.edges?.[0]?.node?.url;
   const city = hotel.location?.address?.city;
@@ -25,9 +34,8 @@ export function HotelListItem({
   const total = lowest && nights > 0 ? Number(lowest.amount) : null;
   const perNight = total !== null ? total / nights : null;
 
-  const stayParams = `checkIn=${checkIn}&checkOut=${checkOut}&adults=${adults}`;
-  const reservationLink = `/hotels/${hotel.id}/rates?${stayParams}`;
-  const detailLink = `/hotels/${hotel.id}?${stayParams}`;
+  const reservationLink = stayLink(`/hotels/${hotel.id}/rates`, { stay, guests, currency });
+  const detailLink = stayLink(`/hotels/${hotel.id}`, { stay, guests, currency });
 
   const badges: string[] = [];
   if (hotel.hasFreeBreakfast) badges.push("Free breakfast");
@@ -93,7 +101,7 @@ export function HotelListItem({
                 <div className="border-t border-ink/10 pt-4 flex items-end justify-between gap-4">
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.2em] text-ink/55 mb-1">
-                      {nights} night{nights === 1 ? "" : "s"} · {adults} adult{adults === 1 ? "" : "s"}
+                      {nights} night{nights === 1 ? "" : "s"} · {guests.adults} adult{guests.adults === 1 ? "" : "s"}{guests.rooms > 1 ? ` · ${guests.rooms} rooms` : ""}
                     </div>
                     {perNight !== null && lowest ? (
                             <div className="text-ink">

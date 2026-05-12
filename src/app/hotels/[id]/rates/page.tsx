@@ -149,6 +149,7 @@ export default async function RatesPage({
               defaultExpanded={focusRoomId === room.roomType.id}
               adults={guests.adults}
               children={guests.children}
+              rooms={guests.rooms}
             />
           ))}
         </div>

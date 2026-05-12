@@ -133,6 +133,11 @@ export default async function BookPage({
     taxes: parseMoneyAmount(selectedRate.taxesAndFees.taxes),
     fees: parseMoneyAmount(selectedRate.taxesAndFees.fees),
     currency,
+    // Multiply per-room charges by the picker's room count. The
+    // pricing subgraph returns a one-room rate breakdown; the UI
+    // does the multiplication so the breakdown lines stay
+    // round-trip with the rate detail page.
+    rooms: guests.rooms,
   });
 
   const editStayHref =

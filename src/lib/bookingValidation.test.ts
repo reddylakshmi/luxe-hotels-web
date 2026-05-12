@@ -477,6 +477,34 @@ describe("computeChargeSummary", () => {
     });
     expect(s.totalAfterStatementCredit).toBeCloseTo(500 - 250 * 0.93, 2);
   });
+
+  it("multiplies subtotal, taxes, and fees by the rooms count", () => {
+    // Regression: booking sidebar was always showing 1-room totals
+    // even when the search picker selected 2+. Each charge line now
+    // scales with the rooms value.
+    const s = computeChargeSummary({
+      subtotal: 500, taxes: 50, fees: 10, currency: "USD", rooms: 2,
+    });
+    expect(s.subtotal).toBe(1000);
+    expect(s.taxes).toBe(100);
+    expect(s.fees).toBe(20);
+    expect(s.total).toBe(1120);
+  });
+
+  it("defaults rooms to 1 when omitted (single-room call sites unchanged)", () => {
+    const s = computeChargeSummary({
+      subtotal: 500, taxes: 50, fees: 10, currency: "USD",
+    });
+    expect(s.subtotal).toBe(500);
+    expect(s.total).toBe(560);
+  });
+
+  it("clamps rooms to a minimum of 1 even if a malformed URL sends 0 or negative", () => {
+    const s = computeChargeSummary({
+      subtotal: 500, taxes: 50, fees: 10, currency: "USD", rooms: 0,
+    });
+    expect(s.subtotal).toBe(500);
+  });
 });
 
 // ── Hold timer formatter ────────────────────────────────────────────────

@@ -24,6 +24,7 @@ export function RoomRateCard({
   checkOut,
   adults,
   children,
+  rooms,
   defaultExpanded = false,
 }: {
   room: RoomAvailability;
@@ -35,6 +36,12 @@ export function RoomRateCard({
   checkOut: string;
   adults: number;
   children: number;
+  /** Number of rooms the guest selected on the search bar. Threaded
+   *  through to the Book Now deep-link so the booking page can
+   *  multiply the rate charges accordingly — without this, the
+   *  booking sidebar always showed `1 room` regardless of the
+   *  picker's value. */
+  rooms: number;
   /**
    * If true the rate-plan list opens on first render and the card
    * auto-scrolls into view. Used when the user clicks "Check rates" on a
@@ -157,6 +164,7 @@ export function RoomRateCard({
                 checkOut={checkOut}
                 adults={adults}
                 children={children}
+                rooms={rooms}
               />
             ))}
           </ul>
@@ -185,6 +193,7 @@ function RateOptionRow({
   checkOut,
   adults,
   children,
+  rooms,
 }: {
   rate: Rate;
   isMostPopular: boolean;
@@ -196,6 +205,7 @@ function RateOptionRow({
   checkOut: string;
   adults: number;
   children: number;
+  rooms: number;
 }) {
   const [showRateDetails, setShowRateDetails] = useState(false);
   const price = getDisplayPrice(rate, showTaxes, nights);
@@ -211,6 +221,7 @@ function RateOptionRow({
       checkOut,
       adults: String(adults),
       children: String(children),
+      rooms: String(rooms),
     }).toString();
 
   return (

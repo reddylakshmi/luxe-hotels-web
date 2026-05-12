@@ -281,6 +281,7 @@ export function computeChargeSummary({
   taxes,
   fees,
   currency,
+  rooms = 1,
   statementCreditUsd = 250,
   fxRateToUsd = 1,
 }: {
@@ -288,18 +289,28 @@ export function computeChargeSummary({
   taxes: number;
   fees: number;
   currency: string;
+  /** Number of rooms in the booking — multiplies subtotal, taxes,
+   *  and fees by this value. Default 1 keeps existing single-room
+   *  call sites unchanged. */
+  rooms?: number;
   statementCreditUsd?: number;
   fxRateToUsd?: number;
 }): ChargeSummary {
-  const total = subtotal + taxes + fees;
+  // Clamp rooms to a sane range so a malformed URL can't blow up
+  // the math or produce a negative total.
+  const r = Math.max(1, Math.floor(rooms));
+  const scaledSubtotal = subtotal * r;
+  const scaledTaxes = taxes * r;
+  const scaledFees = fees * r;
+  const total = scaledSubtotal + scaledTaxes + scaledFees;
   // Convert the USD-denominated credit into the booking currency so
   // the deduction and the total share a unit.
   const credit = statementCreditUsd * fxRateToUsd;
   const totalAfterStatementCredit = Math.max(0, total - credit);
   return {
-    subtotal,
-    taxes,
-    fees,
+    subtotal: scaledSubtotal,
+    taxes: scaledTaxes,
+    fees: scaledFees,
     total,
     statementCreditAmountUsd: statementCreditUsd,
     totalAfterStatementCredit,

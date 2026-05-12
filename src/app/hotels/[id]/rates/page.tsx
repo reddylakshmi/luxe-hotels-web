@@ -120,6 +120,9 @@ export default async function RatesPage({
         usePoints={usePoints}
         showTaxes={showTaxes}
         currency={currency}
+        specialRates={specialRates}
+        specialRateCode={specialRateCode ?? undefined}
+        corporateCode={corporateCode ?? undefined}
       />
 
       {/* ── Rate list ───────────────────────────────────────────────── */}

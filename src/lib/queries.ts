@@ -81,12 +81,16 @@ export const SEARCH_HOTELS_QUERY = /* GraphQL */ `
           name
           slug
           starRating
-          brand { id name tier accentColor }
+          # Card tier chip needs only `tier` from the brand subtree —
+          # name/id/accentColor were unused and added 4 cost per row.
+          brand { tier }
           location { address { city countryCode } }
           guestRating { overall count }
           media(first: 1, categories: [EXTERIOR]) {
-            edges { node { url altText } }
+            edges { node { url } }
           }
+          # The amenity-flag block stays — the filter panel reads it
+          # back to highlight matched amenities in results.
           hasPool
           hasSpa
           hasGolf
@@ -835,7 +839,10 @@ export const BRAND_DETAIL_QUERY = /* GraphQL */ `
       loyaltyPointsMultiplier
       numberOfProperties
       sustainabilityCommitment
-      featuredHotels(first: 12) {
+      # Page slices to 6 anyway — fetch exactly what we render to keep
+      # the federated complexity score under control. Each extra hotel
+      # multiplies the per-card subtree cost.
+      featuredHotels(first: 6) {
         id
         name
         slug
@@ -843,10 +850,15 @@ export const BRAND_DETAIL_QUERY = /* GraphQL */ `
         location { address { city countryCode } }
         guestRating { overall count }
         media(first: 1, categories: [EXTERIOR]) {
-          edges { node { url altText } }
+          edges { node { url } }
         }
       }
     }
+    # The full portfolio is heavy by design — every active hotel for
+    # the brand, grouped by country on the page. Selected fields match
+    # HotelCard's rendering exactly; altText, hasSpa, hasPool, and the
+    # extra brand subtree are intentionally NOT requested (HotelCard
+    # reads them defensively but they're never displayed here).
     hotels(first: 60, filter: { brandIds: [$id] }) {
       totalCount
       edges {
@@ -858,9 +870,8 @@ export const BRAND_DETAIL_QUERY = /* GraphQL */ `
           location { address { city countryCode } }
           guestRating { overall count }
           media(first: 1, categories: [EXTERIOR]) {
-            edges { node { url altText } }
+            edges { node { url } }
           }
-          hasSpa hasPool
         }
       }
     }

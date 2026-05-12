@@ -9,9 +9,10 @@ import { fromSearchParams as guestsFrom } from "@/lib/guests";
 import { picker } from "@/lib/searchParams";
 import { BrandLogo } from "@/components/BrandLogo";
 import { StayUpdateBar } from "@/components/StayUpdateBar";
-import { RoomRateCard } from "@/components/RoomRateCard";
+import { RatesTabbedList } from "@/components/RatesTabbedList";
 import { RatesSettingsBar } from "@/components/RatesSettingsBar";
 import { RecentlyViewedTracker } from "@/components/RecentlyViewedTracker";
+import { partitionRoomsByTab } from "@/lib/ratesTabs";
 
 type Resp = { hotel: HotelRates };
 
@@ -129,30 +130,29 @@ export default async function RatesPage({
           />
         </div>
 
-        {rooms.length === 0 && (
+        {rooms.length === 0 ? (
           <div className="border border-ink/10 bg-cream/40 p-10 text-center text-ink/60">
             No rooms are available for the selected dates. Try adjusting your stay dates.
           </div>
+        ) : (
+          <RatesTabbedList
+            // Pre-partition the rooms by rate-plan type on the server
+            // so each tab gets its own filtered room list. The client
+            // island only mounts the active tab's cards — inactive
+            // ones don't pay the useState / effects cost.
+            roomsByTab={partitionRoomsByTab(rooms)}
+            focusRoomId={focusRoomId}
+            nights={hotel.availability?.nights ?? stay.nights}
+            showTaxes={showTaxes}
+            hotelId={params.id}
+            hotelName={hotel.name}
+            checkIn={stay.checkIn}
+            checkOut={stay.checkOut}
+            adults={guests.adults}
+            children={guests.children}
+            rooms={guests.rooms}
+          />
         )}
-
-        <div className="flex flex-col gap-6">
-          {rooms.map((room) => (
-            <RoomRateCard
-              key={room.roomType.id}
-              room={room}
-              nights={hotel.availability?.nights ?? stay.nights}
-              showTaxes={showTaxes}
-              hotelId={params.id}
-              hotelName={hotel.name}
-              checkIn={stay.checkIn}
-              checkOut={stay.checkOut}
-              defaultExpanded={focusRoomId === room.roomType.id}
-              adults={guests.adults}
-              children={guests.children}
-              rooms={guests.rooms}
-            />
-          ))}
-        </div>
       </section>
     </>
   );

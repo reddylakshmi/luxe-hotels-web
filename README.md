@@ -207,7 +207,7 @@ every protected page ensures the round-trip is seamless.
 ## Testing
 
 ```bash
-npm test           # full vitest suite (507 tests, <1s)
+npm test           # full vitest suite (510 tests, <1s)
 npm run test:watch # watch mode
 ```
 
@@ -216,7 +216,7 @@ npm run test:watch # watch mode
 | `lib/account.test.ts` | 54 | Member-since formatter (UTC-stable), card-expiry math, primary-first sort, optional phone, DOB age window, country code, address-form composite |
 | `lib/accountNav.test.ts` | 7 | Sidebar href resolution (anchor → `/account#<id>` from subpages, explicit href passthrough) + active-state rules (subpage match only, never anchor items) |
 | `lib/trip.test.ts` | 15 | Stay-window formatter, cancellation-deadline parsing, mobile-check-in form validator (document type / number / ETA HH:MM) |
-| `lib/bookingValidation.test.ts` | 79 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math, hold-timer formatter, card-number formatter, typing simulations |
+| `lib/bookingValidation.test.ts` | 82 | Email, phone, country-aware zip, Luhn, brand-aware CVV, expiry-vs-now, charge math (incl. multi-room scaling — subtotal/taxes/fees multiply by `rooms` with default 1 and a defensive clamp at ≥ 1), hold-timer formatter, card-number formatter, typing simulations |
 | `lib/meetings.test.ts` | 43 | Setup labels, capacity-fit (snug-not-largest), search input validation + wire shape, match-score caps, RFP wizard step validators, draft-to-input transformer, status tone bucketing, cancel eligibility |
 | `lib/autocomplete.test.ts` | 17 | Group ordering (city → state → country → hotel), flatten, keyboard wraparound, hotel/city/state/country routing |
 | `lib/countries.test.ts` | ~20 | 53-country invariants, ISO codes, phone codes, zip-pattern correctness |

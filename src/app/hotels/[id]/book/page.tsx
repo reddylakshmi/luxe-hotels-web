@@ -116,7 +116,10 @@ export default async function BookPage({
     // empty catalogue if the pricing subgraph is down so the booking
     // page still renders.
     specialRateCode
-      ? gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY).catch(() => ({
+      ? gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY, {}, {}, {
+          revalidate: 3600,
+          tags: ["catalog:specialRates"],
+        }).catch(() => ({
           specialRates: [] as SpecialRate[],
         }))
       : Promise.resolve({ specialRates: [] as SpecialRate[] }),

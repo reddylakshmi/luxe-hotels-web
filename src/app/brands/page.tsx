@@ -1,4 +1,9 @@
-export const dynamic = "force-dynamic";
+// Catalog page — pure read of the brand list. 5-minute ISR with a
+// `catalog:brands` cache tag lets a future admin mutation
+// (revalidateTag('catalog:brands')) invalidate this in milliseconds
+// instead of waiting for the TTL. No searchParams / authed data, so
+// Next will reuse a single rendered HTML snapshot until the tag fires.
+export const revalidate = 300;
 
 import Link from "next/link";
 import { gqlFetch } from "@/lib/graphql";
@@ -17,7 +22,10 @@ const TIER_COPY: Record<string, { eyebrow: string; tagline: string }> = {
 };
 
 export default async function BrandsPage() {
-  const data = await gqlFetch<Resp>(BRANDS_LIST_QUERY);
+  const data = await gqlFetch<Resp>(BRANDS_LIST_QUERY, {}, {}, {
+    revalidate: 300,
+    tags: ["catalog:brands"],
+  });
   const brands = data.brands.edges.map((e) => e.node);
 
   // Group by tier, sorted in our intended order.

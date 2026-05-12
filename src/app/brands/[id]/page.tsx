@@ -1,4 +1,10 @@
-export const dynamic = "force-dynamic";
+// Catalog page — brand metadata + portfolio. Page itself stays
+// dynamically rendered (it reads searchParams for the SearchBar
+// defaults), but the GraphQL data fetches below pass cache tags so
+// the responses are shared across requests. A future
+// revalidateTag('catalog:brand:<id>') invalidates a single brand
+// without touching others.
+export const revalidate = 300;
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -33,8 +39,19 @@ export default async function BrandDetailPage({
   // /search. The catalogue degrades gracefully on failure — the
   // SearchBar omits the picker row if the prop is empty.
   const [data, ratesData] = await Promise.all([
-    gqlFetch<Resp>(BRAND_DETAIL_QUERY, { id: params.id }),
-    gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY).catch(() => ({
+    gqlFetch<Resp>(BRAND_DETAIL_QUERY, { id: params.id }, {}, {
+      revalidate: 300,
+      // Tag by brand id so a single brand can be invalidated without
+      // busting the list page or every other brand-detail entry.
+      tags: [`catalog:brand:${params.id}`],
+    }),
+    gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY, {}, {}, {
+      // The federated specialRates resolver is now @Cacheable for an
+      // hour; mirror that here so the data cache doesn't expire ahead
+      // of the subgraph cache.
+      revalidate: 3600,
+      tags: ["catalog:specialRates"],
+    }).catch(() => ({
       specialRates: [] as SpecialRate[],
     })),
   ]);

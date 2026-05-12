@@ -36,7 +36,12 @@ export default async function ConfirmationPage({
   let specialRateLabel: string | undefined;
   if (specialRateCode && specialRateCode !== "BEST_AVAILABLE") {
     try {
-      const data = await gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY);
+      const data = await gqlFetch<{ specialRates: SpecialRate[] }>(
+        SPECIAL_RATES_QUERY,
+        {},
+        {},
+        { revalidate: 3600, tags: ["catalog:specialRates"] },
+      );
       specialRateLabel = data.specialRates.find((r) => r.code === specialRateCode)?.label;
     } catch {
       specialRateLabel = undefined;

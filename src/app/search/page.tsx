@@ -61,7 +61,10 @@ export default async function SearchPage({
         children: input.children,
         sortBy: input.sortBy ?? null,
       }),
-      gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY).catch(() => ({
+      gqlFetch<{ specialRates: SpecialRate[] }>(SPECIAL_RATES_QUERY, {}, {}, {
+        revalidate: 3600,
+        tags: ["catalog:specialRates"],
+      }).catch(() => ({
         specialRates: [] as SpecialRate[],
       })),
     ]);

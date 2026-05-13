@@ -1,14 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import { findTripAction, type FindTripState } from "@/lib/tripsActions";
+import { buildAuthHref } from "@/lib/auth";
 import { TripCard } from "./TripCard";
 
 const initialState: FindTripState = { ok: false };
 
 export function FindReservationForm() {
   const [state, formAction] = useFormState(findTripAction, initialState);
+  // Carry the current page (/trips by default — this form is only
+  // rendered on the signed-out trips view) as returnTo so signing in
+  // lands the guest back here. /trips then auto-renders their trip
+  // list because the page component checks getSession() at the top.
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const signInHref = buildAuthHref(
+    "/sign-in",
+    pathname,
+    searchParams?.toString() ?? "",
+  );
 
   return (
     <>
@@ -53,7 +66,7 @@ export function FindReservationForm() {
 
       <p className="mt-8 text-sm text-ink/60">
         Or{" "}
-        <Link href="/sign-in" className="text-goldDeep underline hover:no-underline">
+        <Link href={signInHref} className="text-goldDeep underline hover:no-underline">
           sign in
         </Link>{" "}
         to see all of your trips at once.

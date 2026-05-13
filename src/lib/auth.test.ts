@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildAuthHref,
   DEFAULT_AUTH_REDIRECT,
   isSessionExpired,
   safeReturnTo,
@@ -178,6 +179,52 @@ describe("safeReturnTo", () => {
   it("preserves query strings and hash fragments", () => {
     expect(safeReturnTo("/search?destination=Paris#results")).toBe(
       "/search?destination=Paris#results",
+    );
+  });
+});
+
+describe("buildAuthHref", () => {
+  it("returns plain target on root path", () => {
+    expect(buildAuthHref("/sign-in", "/", "")).toBe("/sign-in");
+    expect(buildAuthHref("/sign-up", "/", "")).toBe("/sign-up");
+  });
+
+  it("returns plain target when pathname is missing", () => {
+    expect(buildAuthHref("/sign-in", null, "")).toBe("/sign-in");
+    expect(buildAuthHref("/sign-in", undefined, "")).toBe("/sign-in");
+  });
+
+  it("returns plain target on auth pages themselves (no re-wrap loop)", () => {
+    expect(buildAuthHref("/sign-in", "/sign-in", "returnTo=%2Faccount")).toBe("/sign-in");
+    expect(buildAuthHref("/sign-up", "/sign-up", "returnTo=%2Faccount")).toBe("/sign-up");
+  });
+
+  it("appends returnTo with the current pathname when no query string", () => {
+    expect(buildAuthHref("/sign-in", "/trips", "")).toBe(
+      "/sign-in?returnTo=%2Ftrips",
+    );
+  });
+
+  it("preserves the full path + query string in the encoded returnTo", () => {
+    const href = buildAuthHref(
+      "/sign-in",
+      "/hotels/prop-paris-001/book",
+      "checkIn=2026-06-01&adults=2&specialRateCode=AAA_CAA",
+    );
+    expect(href).toBe(
+      "/sign-in?returnTo=%2Fhotels%2Fprop-paris-001%2Fbook%3FcheckIn%3D2026-06-01%26adults%3D2%26specialRateCode%3DAAA_CAA",
+    );
+    // Round-trip decoding restores the booking URL exactly — that's what
+    // signInAction will redirect to after a successful sign-in.
+    const decoded = decodeURIComponent(href.split("returnTo=")[1]);
+    expect(decoded).toBe(
+      "/hotels/prop-paris-001/book?checkIn=2026-06-01&adults=2&specialRateCode=AAA_CAA",
+    );
+  });
+
+  it("symmetric: same logic for /sign-up", () => {
+    expect(buildAuthHref("/sign-up", "/account/events", "")).toBe(
+      "/sign-up?returnTo=%2Faccount%2Fevents",
     );
   });
 });

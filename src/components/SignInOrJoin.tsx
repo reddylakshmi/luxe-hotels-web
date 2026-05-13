@@ -5,14 +5,28 @@
 // uncluttered and signals the choice clearly. Wraps the existing portal-
 // based Popover so we share the same anchoring + dismiss behaviour as
 // every other dropdown on the site.
+//
+// Both menu items carry a `returnTo` pointing at the guest's current URL
+// (path + search) so signing in from /hotels/[id]/book lands them back on
+// the booking page with the form pre-filled — not the home page. The
+// sign-in / sign-up server action already validates returnTo via
+// `safeReturnTo` (lib/auth.ts), so we trust the link layer to read the
+// current URL and the action layer to gate it.
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { Popover } from "./Popover";
+import { buildAuthHref } from "@/lib/auth";
 
 export function SignInOrJoin() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams?.toString() ?? "";
+  const signInHref = buildAuthHref("/sign-in", pathname, search);
+  const signUpHref = buildAuthHref("/sign-up", pathname, search);
 
   return (
     <>
@@ -34,12 +48,12 @@ export function SignInOrJoin() {
           role="menu"
           className="bg-cream border border-ink/10 shadow-xl w-56 py-1"
         >
-          <MenuLink href="/sign-in" onPick={() => setOpen(false)}>
+          <MenuLink href={signInHref} onPick={() => setOpen(false)}>
             <span className="block font-medium">Sign In</span>
             <span className="block text-xs text-ink/55">Welcome back, member.</span>
           </MenuLink>
           <div className="border-t border-ink/10" />
-          <MenuLink href="/sign-up" onPick={() => setOpen(false)}>
+          <MenuLink href={signUpHref} onPick={() => setOpen(false)}>
             <span className="block font-medium">Join Luxe</span>
             <span className="block text-xs text-ink/55">
               Free account · member rates · earn points.

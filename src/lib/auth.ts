@@ -140,6 +140,35 @@ export function safeReturnTo(value: string | undefined | null): string {
   return v;
 }
 
+/**
+ * Build a `/sign-in?returnTo=...` (or sign-up) href that points back to
+ * the page the user is currently on. Used by the header's
+ * SignInOrJoin dropdown so signing in from /hotels/[id]/book lands
+ * the guest back on the booking page with their form pre-filled,
+ * instead of dropping them on the home page.
+ *
+ * Returns the plain `/sign-in` / `/sign-up` href (no returnTo) when:
+ *  • on root — that's the default redirect target anyway,
+ *  • on `/sign-in` or `/sign-up` themselves — the auth page reads
+ *    returnTo from its own query string; re-wrapping would either
+ *    nest the encoding or create a loop.
+ *
+ * Pure — accepts a pathname + a query-string and returns a path.
+ * No React, no DOM, no network — vitest can pin every branch.
+ */
+export function buildAuthHref(
+  target: "/sign-in" | "/sign-up",
+  pathname: string | null | undefined,
+  search: string | null | undefined,
+): string {
+  if (!pathname || pathname === "/") return target;
+  if (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up")) {
+    return target;
+  }
+  const currentUrl = search && search.length > 0 ? `${pathname}?${search}` : pathname;
+  return `${target}?returnTo=${encodeURIComponent(currentUrl)}`;
+}
+
 /** Compose a Session from the AuthPayload returned by signIn / signUp. */
 export function sessionFromAuthPayload(
   payload: {

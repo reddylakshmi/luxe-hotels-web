@@ -1648,21 +1648,37 @@ query MyRFPs($first: Int, $after: String, $status: RFPStatus) {
 
 1. **A page renders on the server** (Next.js App Router, all pages in
    `src/app/**/page.tsx` are React Server Components).
-2. The page calls `gqlFetch<T>(QUERY, variables)` —
-   `src/lib/graphql.ts` wraps `fetch()` with `next: { revalidate: 30 }` so
-   responses are cached for 30 seconds at the route level.
+2. The page calls `gqlFetch<T>(QUERY, variables, headers, cache)` —
+   `src/lib/graphql.ts` wraps `fetch()` with `next: { revalidate, tags }`.
+   The default is `revalidate: 30`; catalog pages (`/brands`,
+   `/brands/[id]`, every `SPECIAL_RATES_QUERY` call site) pass longer
+   TTLs (5 min for brand data, 1 h for the special-rates catalogue) and
+   cache tags (`catalog:brands`, `catalog:brand:<id>`,
+   `catalog:specialRates`) so admin mutations can target invalidation
+   via `revalidateTag(...)` instead of nuking entire paths.
 3. The HTTP `POST` body is a standard GraphQL request:
    `{ "query": "...", "variables": {...} }`.
-4. **Apollo Router** (port 4000) parses the operation, computes a query
-   plan, and dispatches sub-queries in parallel to the relevant subgraphs
-   (`property:4001`, `pricing:4003`, `experiences:4007`, `meetings:4008`,
-   `content:4006`, etc.).
-5. Each subgraph runs Netflix DGS resolvers against in-memory mock data
-   (or, for the content subgraph, against the
+4. **Apollo Router** (port 4000) runs the request through its pipeline:
+   per-IP rate limit → **APQ** (replay body by SHA-256 hash, 1k-entry
+   in-memory cache) → parse + validate → **query plan cache** (4096
+   in-memory entries; same operation shape is planned once) →
+   **subgraph dedup** (`deduplicate_query: true` collapses in-flight
+   identical fan-out calls) → execute. The plan dispatches sub-queries
+   in parallel to the relevant subgraphs (`property:4001`,
+   `pricing:4003`, `experiences:4007`, `meetings:4008`, `content:4006`,
+   etc.).
+5. Each subgraph runs Netflix DGS resolvers against in-memory mock data.
+   Catalog reads in property + the `specialRates` constant in pricing
+   sit behind **Caffeine `@Cacheable`** (`catalog.brand` / `catalog.featuredHotels`
+   5 min, `pricing.specialRates` 1 h). DataLoader sits below that and
+   solves the N+1 problem within a single request. The content subgraph
+   proxies to the
    [`luxe-hotels-content-api`](https://github.com/reddylakshmi/luxe-hotels-content-api)
-   REST backend when `LUXE_CONTENT_BACKEND_URL` is set).
+   REST backend when `LUXE_CONTENT_BACKEND_URL` is set.
 6. The router merges the results, returns one JSON payload, and the page
-   renders HTML to the browser.
+   renders HTML to the browser. Cold home-page latency is ~270 ms; warm
+   is ~15 ms because Caffeine + the router query-plan cache absorb the
+   work.
 
 A property-side instrumentation logs every operation it sees:
 

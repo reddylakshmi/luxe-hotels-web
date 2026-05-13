@@ -186,7 +186,7 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 ## Design notes
 
 - **Image strategy.** The GraphQL data points to placeholder URLs at `content.luxehotels.example` that don't actually serve files. `src/lib/image.ts` deterministically maps every `content.luxehotels.example` URL to a stable Picsum seed so the same slot always renders the same image. Real photos drop in later by changing one helper.
-- **No Apollo Client on the client.** All pages are server components. Caching and revalidation are handled by Next's `fetch` (`revalidate: 30`). If a future page needs interactive client-side queries, add Apollo Client locally in that route — don't make it a dependency for the whole app.
+- **No Apollo Client on the client.** All pages are server components. Caching and revalidation are handled by Next's `fetch` — `gqlFetch` defaults to `revalidate: 30` and accepts a per-call `{ revalidate, tags }` for catalog pages that opt into longer TTLs. `/brands`, `/brands/[id]`, and every `SPECIAL_RATES_QUERY` call site pass cache tags (`catalog:brands`, `catalog:brand:<id>`, `catalog:specialRates`) so a future admin mutation can `revalidateTag(...)` instead of nuking entire paths. If a future page needs interactive client-side queries, add Apollo Client locally in that route — don't make it a dependency for the whole app.
 - **Type safety.** `src/types/graphql.ts` is hand-written to match the queries in `src/lib/queries.ts`. When the schema changes, update both files. (Future improvement: add `graphql-codegen` to generate types from a downloaded supergraph SDL.)
 - **Locale.** All queries pass `locale: "en"`. The GraphQL layer handles fallback when a translation is missing — nothing in this app does.
 - **Account hub.** `/account` is one federated `MyAccount` query (guest + reservations subgraphs in one round-trip) feeding four sticky-sidebar sections: Profile, Addresses, Payment methods, Recent trips. Profile edits, address add / edit / remove / set-primary, and payment add / remove / set-default each post to a Server Action that calls the matching mutation and runs `revalidatePath('/account')`. Validation is pure (`lib/account.ts` — phone, ISO date, country code, address shape, card-expiry math) so vitest covers every branch. The header's "Hi, {firstName}" greeting links here. The sidebar (`AccountSidebar`) is route-aware — section anchors rewrite to `/account#<id>` when mounted on a subpage so clicking *Profile* from `/account/loyalty` actually takes you back, and the matching subpage entry gets a goldDeep `aria-current="page"` indicator. Every subpage hero also carries an `AccountBreadcrumb` (← Back to account + small-caps trail) for redundant, can't-miss back-navigation.
@@ -242,10 +242,22 @@ out without the header → server returns either anonymous-safe data
 or `UNAUTHORIZED`. The redirect-to-`/sign-in?returnTo=…` pattern on
 every protected page ensures the round-trip is seamless.
 
+**`buildAuthHref(target, pathname, search)`** in `lib/auth.ts` is the
+shared helper for "Sign In" CTAs on signed-out pages. It builds
+`/sign-in?returnTo=<encoded current URL>` so that any guest who hits
+sign-in from `/hotels/[id]/book`, `/trips`, or a future protected
+page lands back exactly where they were. Returns the plain
+`/sign-in` on root and on the auth pages themselves to avoid
+re-wrap loops. The downstream chain (sign-in page → `SignInForm`
+hidden input → `signInAction` → `safeReturnTo()` validation →
+redirect) was already correct; this helper is the link-side glue
+so the masthead `SignInOrJoin` dropdown and the `/trips`
+"sign in to see all of your trips" CTA both round-trip cleanly.
+
 ## Testing
 
 ```bash
-npm test           # full vitest suite (548 tests, <1s)
+npm test           # full vitest suite (561 tests, <1s)
 npm run test:watch # watch mode
 ```
 
@@ -266,7 +278,7 @@ npm run test:watch # watch mode
 | `lib/money.test.ts` | 7 | `parseMoneyAmount`, `formatMoney`, `formatAmount` edge cases |
 | `lib/image.test.ts` | 7 | Placeholder-host detection, deterministic seed, real-URL passthrough |
 | `lib/recentlyViewed.test.ts` | 15 | localStorage ordering, dedup, cap at 12, malformed JSON, SSR-null storage |
-| `lib/auth.test.ts` | 22 | Password rules, confirm-password, sign-in / sign-up form validators, session expiry, AuthPayload→Session conversion |
+| `lib/auth.test.ts` | 28 | Password rules, confirm-password, sign-in / sign-up form validators, session expiry, AuthPayload→Session conversion, `buildAuthHref` returnTo builder (root + auth-page loops + query-string preservation) |
 | `lib/hotelTabs.test.ts` | 38 | Tab id parsing (case / whitespace / # prefix), keyboard wraparound (←/→/↑/↓/Home/End), default-tab fallback |
 | `lib/guests.test.ts` | 29 | Room/adult/child arithmetic, child-age serialisation |
 | `lib/stay.test.ts` | 18 | `resolveStay` defaulting from any partial input |

@@ -313,6 +313,18 @@ npm run test:watch # watch mode
 
 Every file under `src/lib/` has a test counterpart.
 
+### Not covered by vitest — query-complexity sizing
+
+The suite tests **pure helpers only**; it never issues a GraphQL
+request, so it can't catch a page whose query trips the gateway's
+2000-point complexity cap (`QUERY_TOO_COMPLEX`). That gap is real:
+`/hotels` once requested `hotels(first: 300)` — each node scores ~27
+points, so the operation hit ~8100 and the page 500'd against the
+backend. The fix capped `HOTELS_PER_PAGE` at 60 (~1620 points).
+**When you raise a `first:` argument or add fields to a list query,
+smoke-test the page against a running backend** — `tsc` and vitest
+will both stay green while the page is broken.
+
 ## File map
 
 ```

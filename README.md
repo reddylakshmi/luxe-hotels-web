@@ -1,6 +1,6 @@
 # Luxe Hotels — Web
 
-Next.js 14 (App Router) front-end for the **luxe-hotels-graphqlwithJava** federated GraphQL platform. Inspired by editorial luxury sites (marriott.com, fourseasons.com): big imagery, serif headlines, generous whitespace, sticky navigation, member-led calls to action.
+Next.js 14 (App Router) front-end for the **luxe-hotels** federated GraphQL platform — interchangeably served by either [`luxe-hotels-graphqlwithJava`](../luxe-hotels-graphqlwithJava) (Netflix DGS / Spring Boot) or [`luxe-hotels-graphqlwithtypescript`](../luxe-hotels-graphqlwithtypescript) (Apollo Server 4 / Node 20); both expose the same supergraph on `http://localhost:4000/`. Inspired by editorial luxury sites (marriott.com, fourseasons.com): big imagery, serif headlines, generous whitespace, sticky navigation, member-led calls to action.
 
 ## Stack
 
@@ -163,7 +163,12 @@ The home page issues a single federated query that reaches `featuredHotels`, `fe
 
 ## Run it locally
 
-**1.** Make sure the federated backend is running on `http://localhost:4000/`:
+**1.** Make sure a federated backend is running on `http://localhost:4000/`.
+This app is backend-agnostic — it only talks to the Apollo Router URL, so
+either implementation of the `luxe-hotels` supergraph works. The two share
+a byte-for-byte identical schema; pick one:
+
+**Option A — Java backend** (`luxe-hotels-graphqlwithJava`, Netflix DGS / Spring Boot):
 
 ```bash
 cd ../luxe-hotels-graphqlwithJava
@@ -171,6 +176,22 @@ cd ../luxe-hotels-graphqlwithJava
   && APOLLO_ELV2_LICENSE=accept ~/.rover/bin/rover supergraph compose --config supergraph.yaml --output supergraph.graphqls \
   && ./router/router --config router/router.yaml --supergraph supergraph.graphqls
 ```
+
+**Option B — TypeScript backend** (`luxe-hotels-graphqlwithtypescript`, Apollo Server 4 / Node 20):
+
+```bash
+cd ../luxe-hotels-graphqlwithtypescript
+pnpm install && pnpm build && pnpm compose:supergraph
+bash scripts/start-subgraphs.sh        # 10 subgraphs on ports 4001–4010
+./router/router --config router/router.yaml --supergraph supergraph.graphql
+```
+
+Both serve the router on port 4000 with the same 53 queries / 49 mutations,
+the same JWT auth (`Authorization: Bearer`), and the same error codes
+(`UNAUTHORIZED`, `RATE_LIMITED`, `QUERY_TOO_COMPLEX`, …). Switching backends
+needs **no change to this app** — just run the other project's router on
+`:4000`. See the `README.md` in each backend project for prerequisites
+(`rover` for both; `pnpm` + Node 20 for the TypeScript one).
 
 **2.** Install + start the web app:
 
@@ -196,7 +217,10 @@ The GraphQL endpoint is configured via `NEXT_PUBLIC_GRAPHQL_URL` in `.env.local`
 ## Security — how the web interacts with the gateway gates
 
 The federated platform enforces **five layered controls** server-side
-(see [`luxe-hotels-graphqlwithJava/README.md` ▸ Security](../luxe-hotels-graphqlwithJava/README.md#security)).
+(see the Security section in each backend's README —
+[`luxe-hotels-graphqlwithJava`](../luxe-hotels-graphqlwithJava/README.md#security)
+or [`luxe-hotels-graphqlwithtypescript`](../luxe-hotels-graphqlwithtypescript/README.md);
+both implement the same gates).
 None of them live in this Next.js app — the web is a *consumer* of the
 gateway contract. Here's what that means for the front-end code:
 

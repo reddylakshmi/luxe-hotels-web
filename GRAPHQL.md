@@ -11,9 +11,14 @@ ship Apollo Client to the browser. All pages are React Server Components, so
 the request is made server-side and only the rendered HTML reaches the
 client.
 
-The Apollo Router fans each operation out across the relevant subgraphs in
-the [`luxe-hotels-graphqlwithJava`](https://github.com/reddylakshmi/luxe-hotels-graphqlwithJava)
-project. The "Subgraphs touched" column lists which subgraphs serve each
+The Apollo Router fans each operation out across the relevant subgraphs.
+Two interchangeable backends implement that supergraph, both serving the
+router on `http://localhost:4000/` with a byte-for-byte identical schema:
+[`luxe-hotels-graphqlwithJava`](https://github.com/reddylakshmi/luxe-hotels-graphqlwithJava)
+(Netflix DGS / Spring Boot) and
+[`luxe-hotels-graphqlwithtypescript`](https://github.com/reddylakshmi/luxe-hotels-graphqlwithtypescript)
+(Apollo Server 4 / Node 20). Every operation in this document works against
+either one. The "Subgraphs touched" column lists which subgraphs serve each
 top-level field.
 
 ---
@@ -22,9 +27,11 @@ top-level field.
 
 The federated platform enforces field-level + row-level authorization,
 query complexity caps, and per-request rate limits server-side. The
-full breakdown lives in the
-[backend README ▸ Security](../luxe-hotels-graphqlwithJava/README.md#security).
-What every query in this document has to respect:
+full breakdown lives in each backend's README Security section —
+[`luxe-hotels-graphqlwithJava`](../luxe-hotels-graphqlwithJava/README.md#security)
+or [`luxe-hotels-graphqlwithtypescript`](../luxe-hotels-graphqlwithtypescript/README.md);
+both implement the same gates. What every query in this document has to
+respect:
 
 | Surface | Path | Notes |
 |---|---|---|
@@ -1667,10 +1674,13 @@ query MyRFPs($first: Int, $after: String, $status: RFPStatus) {
    in parallel to the relevant subgraphs (`property:4001`,
    `pricing:4003`, `experiences:4007`, `meetings:4008`, `content:4006`,
    etc.).
-5. Each subgraph runs Netflix DGS resolvers against in-memory mock data.
-   Catalog reads in property + the `specialRates` constant in pricing
-   sit behind **Caffeine `@Cacheable`** (`catalog.brand` / `catalog.featuredHotels`
-   5 min, `pricing.specialRates` 1 h). DataLoader sits below that and
+5. Each subgraph runs its resolvers against in-memory mock data —
+   Netflix DGS resolvers in the Java backend, Apollo Server 4 resolvers
+   in the TypeScript backend. Catalog reads in property + the
+   `specialRates` constant in pricing sit behind a named cache
+   (Caffeine `@Cacheable` in Java, `lru-cache` in TypeScript —
+   `catalog.brand` / `catalog.featuredHotels` 5 min, `pricing.specialRates`
+   1 h either way). DataLoader sits below that and
    solves the N+1 problem within a single request. The content subgraph
    proxies to the
    [`luxe-hotels-content-api`](https://github.com/reddylakshmi/luxe-hotels-content-api)

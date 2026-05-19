@@ -188,7 +188,7 @@ export function BookingForm({
   useEffect(() => {
     if (!selectedAddress) return;
     setGuest("country", selectedAddress.countryCode);
-    setGuest("addressLine1", selectedAddress.line1);
+    setGuest("addressLine1", selectedAddress.line1 ?? "");
     setGuest("addressLine2", selectedAddress.line2 ?? "");
     setGuest("city", selectedAddress.city);
     setGuest("state", selectedAddress.stateCode ?? "");

@@ -312,7 +312,11 @@ describe("sortPrimaryFirst", () => {
     expect(sortPrimaryFirst(items).map((x) => x.id)).toEqual(["b", "a", "c"]);
   });
   it("is a no-op when nothing is primary", () => {
-    const items = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    const items = [
+      { id: "a", isPrimary: false },
+      { id: "b", isPrimary: false },
+      { id: "c", isPrimary: false },
+    ];
     expect(sortPrimaryFirst(items).map((x) => x.id)).toEqual(["a", "b", "c"]);
   });
   it("does not mutate the input", () => {

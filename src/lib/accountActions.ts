@@ -319,10 +319,10 @@ export async function addPaymentAction(
   const lastFour = digits.slice(-4);
   const brand = cardBrand(digits);
   const brandLabel =
-    brand === "visa" ? "Visa"
-    : brand === "mastercard" ? "Mastercard"
-    : brand === "amex" ? "American Express"
-    : brand === "discover" ? "Discover"
+    brand === "VISA" ? "Visa"
+    : brand === "MC" ? "Mastercard"
+    : brand === "AMEX" ? "American Express"
+    : brand === "DISCOVER" ? "Discover"
     : "Card";
 
   const input = {

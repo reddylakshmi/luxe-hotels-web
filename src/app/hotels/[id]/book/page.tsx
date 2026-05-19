@@ -43,12 +43,15 @@ type ProfileWithPayments = GuestProfile & {
   paymentMethods?: { edges: { node: SavedPaymentMethod }[] } | null;
 };
 
+// Mirrors PaymentMethodSummary from the GraphQL schema — brand and
+// holderName are genuinely nullable on the wire, so consumers must
+// tolerate null rather than the type pretending otherwise.
 export type SavedPaymentMethod = {
   id: string;
   type: string;
-  brand: string;
+  brand?: string | null;
   lastFour: string;
-  holderName: string;
+  holderName?: string | null;
   expiryMonth: number;
   expiryYear: number;
   isDefault: boolean;

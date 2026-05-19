@@ -13,6 +13,9 @@ import { BookingSummarySidebar } from "./BookingSummarySidebar";
 import { pointsToCashUSD } from "@/lib/loyalty";
 import type { ChargeSummary, GuestInformation } from "@/lib/bookingValidation";
 import type { Rate, RoomAvailability } from "@/types/graphql";
+// Reuse the canonical SavedPaymentMethod shape that BookingForm consumes,
+// so this wrapper can't drift from the type the form actually requires.
+import type { SavedPaymentMethod } from "@/app/hotels/[id]/book/page";
 
 type SavedAddress = {
   id: string;
@@ -24,17 +27,6 @@ type SavedAddress = {
   postalCode?: string | null;
   countryCode: string;
   isPrimary: boolean;
-};
-
-type SavedPaymentMethod = {
-  id: string;
-  type: string;
-  brand?: string | null;
-  lastFour: string;
-  holderName?: string | null;
-  expiryMonth: number;
-  expiryYear: number;
-  isDefault: boolean;
 };
 
 export function BookingExperience({

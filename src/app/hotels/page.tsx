@@ -68,7 +68,12 @@ const COUNTRY_NAMES: Record<string, { name: string; region: string }> = {
 
 const REGION_ORDER = ["Americas", "Europe", "Asia Pacific", "Middle East & Africa"];
 
-const HOTELS_PER_PAGE = 300;
+// Kept under the gateway's 2000-point query-complexity cap. Each hotel
+// node in HOTELS_LIST_QUERY scores ~27 points, so first:300 blew the
+// limit (~8100) and 500'd the page. 60 lands at ~1620 with headroom;
+// the page already shows "first N of {totalCount}" so this degrades
+// gracefully. Raise only alongside a lighter per-node selection.
+const HOTELS_PER_PAGE = 60;
 
 export default async function HotelsPage({
                                             searchParams,

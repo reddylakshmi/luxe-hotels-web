@@ -48,6 +48,18 @@ export async function gqlFetch<T>(
         fetchInit.next = next;
     }
 
+    // Log every operation sent to the gateway. Server-component fetches
+    // print to the `npm run dev` terminal — handy for tracing which page
+    // fired which query (and for catching accidental over-fetching).
+    // Whitespace is collapsed so each request is one greppable line.
+    const operationName =
+        query.match(/\b(?:query|mutation)\b\s+(\w+)/)?.[1] ?? "(anonymous)";
+    console.log(
+        `[graphql] ${operationName} ` +
+        `vars=${JSON.stringify(variables)} ` +
+        `query=${query.replace(/\s+/g, " ").trim()}`,
+    );
+
     const res = await fetch(GRAPHQL_URL, fetchInit);
     if (!res.ok) {
         throw new Error(`GraphQL HTTP ${res.status}`);
